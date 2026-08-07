@@ -1,0 +1,134 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+
+<section class="mb-10 sm:mb-12">
+    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+        <div>
+            <p class="scoreclock text-xs text-pitch-600 tracking-widest mb-2">
+                {{ urgent_matches|length }} URGENT &middot; {{ scheduled_matches|length }} SCHEDULED
+            </p>
+            <h1 class="font-display font-bold text-3xl sm:text-4xl text-ink-900 tracking-tight leading-tight">
+                Need players?<br class="hidden sm:block"> Kick off in minutes.
+            </h1>
+            <p class="text-ink-500 mt-2 max-w-md">
+                Real games, posted by real hosts nearby. Join an open squad or post your own request in under a minute.
+            </p>
+        </div>
+        {% if user.is_authenticated %}
+        <a href="{% url 'create_match' %}" class="shrink-0 inline-flex items-center justify-center gap-2 bg-pitch-900 hover:bg-pitch-700 text-chalk-50 font-semibold text-sm px-5 py-3 rounded-xl transition-colors shadow-sm">
+            Host a match →
+        </a>
+        {% endif %}
+    </div>
+</section>
+
+{% if host_notifications %}
+<section class="mb-8">
+    <div class="rounded-2xl border-2 border-pitch-600/40 bg-pitch-600/5 p-5">
+        <h4 class="font-display font-bold text-sm text-pitch-700 mb-3 tracking-wide uppercase">
+            Requests for your matches ({{ host_notifications.count }})
+        </h4>
+        <div class="space-y-2.5">
+            {% for notif in host_notifications %}
+                <div class="flex items-center justify-between gap-3 rounded-xl border px-4 py-3 bg-white
+                    {% if notif.status == 'ACCEPTED' %}border-pitch-600/25{% else %}border-sky-500/25{% endif %}">
+                    <div class="min-w-0">
+                        <p class="font-semibold text-sm text-ink-900 truncate">
+                            {{ notif.player.first_name|default:notif.player.username }}
+                            {% if notif.status == 'ACCEPTED' and notif.player.profile.phone %}
+                                <span class="scoreclock text-xs text-pitch-600 ml-1.5">📞 {{ notif.player.profile.phone }}</span>
+                            {% endif %}
+                        </p>
+                        <p class="text-xs text-ink-500 mt-0.5">{{ notif.match.turf.name }} &middot; {{ notif.match.match_time|date:"h:i A" }}</p>
+                    </div>
+                    <div class="shrink-0 flex items-center gap-2">
+                        {% if notif.status == 'PENDING' %}
+                            <a href="{% url 'respond_request' notif.id 'accept' %}" class="text-xs font-bold bg-pitch-600 hover:bg-pitch-700 text-white px-3 py-1.5 rounded-lg transition-colors">Accept</a>
+                            <a href="{% url 'respond_request' notif.id 'reject' %}" class="text-xs font-semibold text-ink-500 hover:text-rose-600 px-2 py-1.5 transition-colors">Decline</a>
+                        {% else %}
+                            <span class="text-xs font-bold text-pitch-700 bg-pitch-600/10 px-2.5 py-1 rounded-md">Accepted</span>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
+
+{% if joinee_notifications %}
+<section class="mb-8">
+    <div class="rounded-2xl border-2 border-floodlight-500/40 bg-floodlight-400/10 p-5">
+        <h4 class="font-display font-bold text-sm text-ink-900 mb-3 tracking-wide uppercase">
+            Updates on your requests ({{ joinee_notifications.count }})
+        </h4>
+        <div class="space-y-2.5">
+            {% for notif in joinee_notifications %}
+                <div class="flex items-center justify-between gap-3 rounded-xl border px-4 py-3 bg-white
+                    {% if notif.status == 'ACCEPTED' %}border-pitch-600/25{% else %}border-rose-500/25{% endif %}">
+                    <div class="min-w-0">
+                        <p class="font-semibold text-sm text-ink-900 truncate">{{ notif.match.turf.name }}</p>
+                        <p class="text-xs text-ink-500 mt-0.5">{{ notif.match.match_time|date:"D, h:i A" }}
+                            {% if notif.status == 'ACCEPTED' and notif.match.host.profile.phone %}
+                                &middot; <span class="scoreclock text-pitch-600">📞 {{ notif.match.host.profile.phone }}</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="shrink-0 flex items-center gap-2">
+                        {% if notif.status == 'ACCEPTED' %}
+                            <span class="text-xs font-bold text-pitch-700 bg-pitch-600/10 px-2.5 py-1 rounded-md">You're in 🎉</span>
+                        {% else %}
+                            <span class="text-xs font-bold text-rose-600 bg-rose-500/10 px-2.5 py-1 rounded-md">Declined</span>
+                        {% endif %}
+                        <a href="{% url 'match_detail' notif.match.id %}" class="text-xs font-semibold text-ink-500 hover:text-ink-900">View</a>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<section class="mb-10">
+    <div class="flex items-center gap-2 mb-4">
+        <span class="relative flex h-2.5 w-2.5">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-floodlight-500 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-floodlight-500"></span>
+        </span>
+        <h2 class="font-display font-bold text-lg text-ink-900">Urgent — playing now</h2>
+    </div>
+
+    {% if urgent_matches %}
+        <div class="grid gap-3">
+            {% for match in urgent_matches %}
+                {% include 'core/_match_ticket.html' with match=match urgent=True %}
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="rounded-2xl border border-dashed border-ink-900/15 py-10 text-center">
+            <p class="text-ink-500 text-sm">No urgent requests right now. Be the first to call one.</p>
+        </div>
+    {% endif %}
+</section>
+
+<section>
+    <div class="flex items-center gap-2 mb-4">
+        <span class="h-2.5 w-2.5 rounded-full bg-pitch-600"></span>
+        <h2 class="font-display font-bold text-lg text-ink-900">Scheduled games</h2>
+    </div>
+
+    {% if scheduled_matches %}
+        <div class="grid gap-3">
+            {% for match in scheduled_matches %}
+                {% include 'core/_match_ticket.html' with match=match urgent=False %}
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="rounded-2xl border border-dashed border-ink-900/15 py-10 text-center">
+            <p class="text-ink-500 text-sm">Nothing scheduled yet — check back soon.</p>
+        </div>
+    {% endif %}
+</section>
+
+{% endblock %}

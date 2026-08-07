@@ -1,0 +1,119 @@
+/* SquadTurf — matchday-ticket design system supplement to Tailwind */
+
+::selection {
+  background: #FFD23F;
+  color: #08251C;
+}
+
+/* ---- Matchday ticket card (signature element) ------------------------- */
+/* A pickup-match listing rendered as a torn stadium ticket stub: a solid
+   body + a perforated tear-line separating the "stub" (status) section. */
+
+.ticket {
+  position: relative;
+  background: #FFFFFF;
+  border-radius: 14px;
+  border: 1px solid #EAEFE4;
+  box-shadow: 0 1px 2px rgba(11, 31, 23, 0.04);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  overflow: hidden;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.ticket-link:hover .ticket,
+.ticket.is-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -8px rgba(11, 61, 46, 0.18);
+  border-color: #C9DBCC;
+}
+
+.ticket-urgent {
+  border-left: 4px solid #F5B700;
+}
+
+.ticket-scheduled {
+  border-left: 4px solid #16794F;
+}
+
+.ticket-stub {
+  position: relative;
+  min-width: 108px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: #F4F7F1;
+  padding: 0.75rem 0.5rem;
+  text-align: center;
+}
+
+.ticket-stub::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px dashed #D8E2D4;
+}
+
+/* perforation dots along the tear line, top & bottom */
+.ticket-stub::after {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: -6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #F8F9F6;
+  box-shadow: 0 100% 0 0 transparent;
+}
+
+/* ---- Scoreboard-style mono readouts ------------------------------------ */
+
+.scoreclock {
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Field-line divider ------------------------------------------------ */
+
+.field-divider {
+  height: 1px;
+  background-image: repeating-linear-gradient(90deg, #D8E2D4 0 8px, transparent 8px 16px);
+}
+
+/* ---- Toast animation ---------------------------------------------------- */
+
+.toast {
+  animation: toast-in 0.25s ease;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Form control polish (Tailwind handles layout; this covers focus/feel) */
+
+input, select, textarea {
+  font-size: 16px; /* avoids iOS auto-zoom */
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+}
+
+/* ---- Reduced motion ------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .ticket, .toast, .animate-ping {
+    animation: none !important;
+    transition: none !important;
+  }
+}

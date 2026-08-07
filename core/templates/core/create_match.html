@@ -1,0 +1,80 @@
+{% extends 'core/base.html' %}
+{% block title %}Host a match — SquadTurf{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto">
+    <a href="javascript:history.back()" class="inline-flex items-center gap-1 text-sm font-medium text-ink-500 hover:text-ink-900 mb-4">← Back</a>
+
+    <div class="mb-6">
+        <h1 class="font-display font-bold text-2xl text-ink-900">Call players to your match</h1>
+        <p class="text-ink-500 text-sm mt-1">Post it once — it disappears from the feed automatically once it's full or the time passes.</p>
+    </div>
+
+    <form method="POST" class="bg-white border border-ink-900/10 rounded-2xl p-6 shadow-sm space-y-5">
+        {% csrf_token %}
+
+        <div>
+            <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Turf</label>
+            {{ form.turf }}
+        </div>
+
+        <div>
+            <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Urgency</label>
+            {{ form.match_type }}
+        </div>
+
+        <div id="urgent_box">
+            <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Kicking off</label>
+            {{ form.emergency_time_offset }}
+        </div>
+
+        <div id="scheduled_box" class="hidden">
+            <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Date &amp; time</label>
+            {{ form.match_time_scheduled }}
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Cost sharing</label>
+                {{ form.cost_model }}
+            </div>
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Players needed</label>
+                {{ form.players_needed }}
+            </div>
+        </div>
+
+        <div id="per_head_box">
+            <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Per-head amount (₹)</label>
+            {{ form.per_head_amount }}
+        </div>
+
+        <div>
+            <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Note for players <span class="normal-case font-medium text-ink-500/70">(optional)</span></label>
+            {{ form.note }}
+        </div>
+
+        <button type="submit" class="w-full bg-floodlight-400 hover:bg-floodlight-500 text-pitch-950 font-bold text-sm py-3 rounded-xl transition-colors">
+            Post match request
+        </button>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function toggleTimeInputs() {
+    var type = document.getElementById('id_match_type').value;
+    document.getElementById('urgent_box').classList.toggle('hidden', type !== 'URGENT');
+    document.getElementById('scheduled_box').classList.toggle('hidden', type !== 'SCHEDULED');
+  }
+  function toggleCostInput() {
+    var model = document.getElementById('id_cost_model').value;
+    document.getElementById('per_head_box').classList.toggle('hidden', model !== 'SPLIT');
+  }
+  document.getElementById('id_match_type').addEventListener('change', toggleTimeInputs);
+  document.getElementById('id_cost_model').addEventListener('change', toggleCostInput);
+  toggleTimeInputs();
+  toggleCostInput();
+</script>
+{% endblock %}

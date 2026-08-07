@@ -1,0 +1,41 @@
+<a href="{% url 'match_detail' match.id %}" class="ticket-link block">
+    <article class="ticket {% if urgent %}ticket-urgent{% else %}ticket-scheduled{% endif %}">
+        <div class="p-4 sm:p-5 min-w-0">
+            <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <h3 class="font-display font-bold text-base text-ink-900 truncate">{{ match.turf.name }}</h3>
+                    <p class="text-xs text-ink-500 mt-0.5">📍 {{ match.turf.location_name }}</p>
+                </div>
+                <span class="shrink-0 scoreclock text-xs font-bold px-2.5 py-1 rounded-md
+                    {% if urgent %} bg-floodlight-400/20 text-floodlight-500 {% else %} bg-pitch-600/10 text-pitch-700 {% endif %}">
+                    {{ match.players_needed }} NEEDED
+                </span>
+            </div>
+
+            <div class="field-divider my-3"></div>
+
+            <div class="flex items-center justify-between gap-3 text-sm">
+                <span class="scoreclock font-semibold text-ink-700">
+                    {% if urgent %}⏱ {{ match.match_time|date:"h:i A" }} today{% else %}📅 {{ match.match_time|date:"D, d M · h:i A" }}{% endif %}
+                </span>
+                <span class="text-ink-500 text-xs font-medium">{{ match.cost_display }}</span>
+            </div>
+        </div>
+
+        <div class="ticket-stub">
+            {% if user.is_authenticated and match.host_id == user.id %}
+                <span class="text-[10px] font-bold text-ink-500 uppercase tracking-wide">Hosted by</span>
+                <span class="text-xs font-bold text-ink-900">You</span>
+            {% elif match.user_req_status %}
+                <span class="text-[10px] font-bold uppercase tracking-wide
+                    {% if match.user_req_status == 'ACCEPTED' %}text-pitch-600{% elif match.user_req_status == 'PENDING' %}text-sky-600{% else %}text-ink-500{% endif %}">
+                    {{ match.user_req_status|title }}
+                </span>
+                <span class="text-xs font-bold text-ink-900">View →</span>
+            {% else %}
+                <span class="text-[10px] font-bold text-ink-500 uppercase tracking-wide">Open spot</span>
+                <span class="text-xs font-bold text-pitch-600">Join →</span>
+            {% endif %}
+        </div>
+    </article>
+</a>

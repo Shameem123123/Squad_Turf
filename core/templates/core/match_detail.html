@@ -1,0 +1,138 @@
+{% extends 'core/base.html' %}
+{% block title %}{{ match.turf.name }} — SquadTurf{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto">
+    <a href="javascript:history.back()" class="inline-flex items-center gap-1 text-sm font-medium text-ink-500 hover:text-ink-900 mb-4">← Back</a>
+
+    <div class="bg-white border border-ink-900/10 rounded-2xl overflow-hidden shadow-sm">
+        <div class="p-6 {% if match.is_urgent %}border-t-4 border-floodlight-400{% else %}border-t-4 border-pitch-600{% endif %}">
+            <div class="flex items-start justify-between gap-3 mb-4">
+                <div>
+                    <h1 class="font-display font-bold text-2xl text-ink-900">{{ match.turf.name }}</h1>
+                    <p class="text-sm text-ink-500 mt-0.5">📍 {{ match.turf.location_name }}</p>
+                </div>
+                <span class="shrink-0 text-xs font-bold px-2.5 py-1 rounded-md
+                    {% if match.status == 'OPEN' %} bg-pitch-600/10 text-pitch-700
+                    {% elif match.status == 'FILLED' %} bg-ink-900/10 text-ink-700
+                    {% else %} bg-rose-500/10 text-rose-600 {% endif %}">
+                    {{ match.get_status_display }}
+                </span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 bg-chalk-100 rounded-xl p-4 mb-4">
+                <div>
+                    <span class="text-[10px] font-bold uppercase tracking-wide text-ink-500">Time</span>
+                    <p class="scoreclock text-sm font-bold text-ink-900 mt-0.5">{{ match.match_time|date:"D, d M · h:i A" }}</p>
+                </div>
+                <div>
+                    <span class="text-[10px] font-bold uppercase tracking-wide text-ink-500">Players needed</span>
+                    <p class="scoreclock text-sm font-bold text-ink-900 mt-0.5">{{ match.players_needed }} spot{{ match.players_needed|pluralize }}</p>
+                </div>
+                <div>
+                    <span class="text-[10px] font-bold uppercase tracking-wide text-ink-500">Host</span>
+                    <p class="text-sm font-bold text-ink-900 mt-0.5">{{ match.host.first_name|default:match.host.username }}</p>
+                </div>
+                <div>
+                    <span class="text-[10px] font-bold uppercase tracking-wide text-ink-500">Cost</span>
+                    <p class="text-sm font-bold text-ink-900 mt-0.5">{{ match.cost_display }}</p>
+                </div>
+            </div>
+
+            {% if match.note %}
+            <div class="mb-5 rounded-xl bg-floodlight-400/10 border border-floodlight-400/30 px-4 py-3">
+                <p class="text-sm text-ink-700"><span class="font-bold">Host note:</span> "{{ match.note }}"</p>
+            </div>
+            {% endif %}
+
+            <div class="field-divider mb-5"></div>
+
+            {% if is_host %}
+                <h3 class="font-display font-bold text-sm text-ink-900 mb-3">Incoming requests ({{ join_requests.count }})</h3>
+                {% if join_requests %}
+                    <div class="space-y-2.5">
+                        {% for req in join_requests %}
+                            <div class="flex items-center justify-between gap-3 rounded-xl border border-ink-900/10 bg-chalk-100 px-4 py-3">
+                                <div>
+                                    <p class="font-semibold text-sm text-ink-900">{{ req.player.first_name|default:req.player.username }}</p>
+                                    {% if req.status == 'ACCEPTED' and req.player.profile.phone %}
+                                        <p class="scoreclock text-xs text-pitch-600 mt-0.5">📞 {{ req.player.profile.phone }}</p>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    {% if req.status == 'PENDING' %}
+                                        <a href="{% url 'respond_request' req.id 'accept' %}" class="text-xs font-bold bg-pitch-600 hover:bg-pitch-700 text-white px-3 py-1.5 rounded-lg transition-colors mr-1.5">Accept</a>
+                                        <a href="{% url 'respond_request' req.id 'reject' %}" class="text-xs font-semibold text-ink-500 hover:text-rose-600 px-2 py-1.5">Decline</a>
+                                    {% elif req.status == 'ACCEPTED' %}
+                                        <span class="text-xs font-bold text-pitch-600">Accepted</span>
+                                    {% elif req.status == 'REJECTED' %}
+                                        <span class="text-xs font-medium text-rose-600">Declined</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-sm text-ink-500 italic">No requests yet — sit tight.</p>
+                {% endif %}
+
+            {% else %}
+                {% if user_request %}
+                    <div class="text-center py-2">
+                        {% if user_request.status == 'PENDING' %}
+                            <p class="font-semibold text-sky-600 mb-3">⏳ Your request is pending host approval.</p>
+                            <a href="{% url 'cancel_join_request' match.id %}" class="inline-flex text-sm font-semibold text-ink-500 hover:text-rose-600 border border-ink-900/15 hover:border-rose-500/40 px-4 py-2 rounded-lg transition-colors">Withdraw request</a>
+                        {% elif user_request.status == 'ACCEPTED' %}
+                            <p class="font-semibold text-pitch-600 mb-2">🎉 You're in! The host accepted your request.</p>
+                            {% if match.host.profile.phone %}
+                                <p class="text-sm text-ink-500 mb-3">Host contact: <span class="scoreclock font-bold text-pitch-600">📞 {{ match.host.profile.phone }}</span></p>
+                            {% endif %}
+                            {% if not is_past %}
+                                <a href="{% url 'leave_match' match.id %}" class="inline-flex text-sm font-semibold text-rose-600 border border-rose-500/30 hover:bg-rose-500/5 px-4 py-2 rounded-lg transition-colors">Step down</a>
+                            {% endif %}
+                        {% elif user_request.status == 'REJECTED' %}
+                            <p class="font-semibold text-rose-600">❌ The host declined this request.</p>
+                        {% elif user_request.status == 'CANCELLED' %}
+                            <a href="{% url 'join_match' match.id %}" class="block w-full bg-pitch-900 hover:bg-pitch-700 text-chalk-50 font-bold text-sm py-3 rounded-xl text-center transition-colors">Re-apply to join</a>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    {% if match.status == 'OPEN' %}
+                        <a href="{% url 'join_match' match.id %}" class="block w-full bg-floodlight-400 hover:bg-floodlight-500 text-pitch-950 font-bold text-sm py-3 rounded-xl text-center transition-colors">Request to join</a>
+                    {% else %}
+                        <button disabled class="block w-full bg-ink-900/10 text-ink-500 font-bold text-sm py-3 rounded-xl text-center cursor-not-allowed">Match {{ match.get_status_display|lower }}</button>
+                    {% endif %}
+                {% endif %}
+            {% endif %}
+
+            {% if is_past and user.is_authenticated %}
+                <div class="mt-6 pt-5 border-t border-ink-900/10">
+                    <h4 class="font-display font-bold text-sm text-ink-900 mb-3">⭐ Post-match feedback</h4>
+                    {% if existing_rating %}
+                        <p class="text-sm text-pitch-600 font-medium">You rated this match {{ existing_rating.stars }}★</p>
+                    {% else %}
+                        <form method="POST" action="{% url 'submit_rating' match.id %}" class="space-y-3">
+                            {% csrf_token %}
+                            <div class="flex items-center gap-3">
+                                <label for="stars" class="text-sm font-medium text-ink-700">Rating</label>
+                                <select name="stars" id="stars" class="rounded-lg border border-ink-900/15 px-2.5 py-1.5 text-sm">
+                                    <option value="5">5 stars</option>
+                                    <option value="4">4 stars</option>
+                                    <option value="3">3 stars</option>
+                                    <option value="2">2 stars</option>
+                                    <option value="1">1 star</option>
+                                </select>
+                            </div>
+                            <label class="flex items-center gap-2 text-sm text-ink-700">
+                                <input type="checkbox" name="showed_up" checked class="rounded border-ink-900/30">
+                                Showed up on time
+                            </label>
+                            <button type="submit" class="text-sm font-semibold text-pitch-700 border border-pitch-600/30 hover:bg-pitch-600/5 px-4 py-2 rounded-lg transition-colors">Submit feedback</button>
+                        </form>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

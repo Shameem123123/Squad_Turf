@@ -1,0 +1,103 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}SquadTurf — Fill Your Squad, Fast{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          pitch: { 950: '#08251C', 900: '#0B3D2E', 700: '#116041', 600: '#16794F', 500: '#1E9660' },
+          chalk: { 50: '#FBFAF6', 100: '#F4F7F1', 200: '#EAEFE4' },
+          floodlight: { 400: '#FFD23F', 500: '#F5B700' },
+          rose: { 500: '#E23B4D', 600: '#C62A3C' },
+          ink: { 900: '#0B1F17', 700: '#31463C', 500: '#5C7166' },
+        },
+        fontFamily: {
+          display: ['"Space Grotesk"', 'sans-serif'],
+          body: ['Inter', 'sans-serif'],
+          mono: ['"JetBrains Mono"', 'monospace'],
+        },
+      }
+    }
+  }
+</script>
+<link rel="stylesheet" href="{% static 'core/css/custom.css' %}">
+</head>
+<body class="font-body bg-chalk-100 text-ink-900 min-h-screen flex flex-col">
+
+<nav class="sticky top-0 z-50 bg-pitch-900 border-b-2 border-floodlight-400/70">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+        <a href="{% url 'feed' %}" class="flex items-center gap-2 group shrink-0">
+            <span class="relative flex h-3 w-3">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-floodlight-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-3 w-3 bg-floodlight-400"></span>
+            </span>
+            <span class="font-display font-bold text-lg text-chalk-50 tracking-tight">SquadTurf</span>
+        </a>
+
+        <div class="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
+            {% if user.is_authenticated %}
+                <a href="{% url 'my_hosted' %}" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-chalk-100/90 hover:text-floodlight-400 transition-colors">
+                    Hosted
+                </a>
+                <a href="{% url 'my_joined' %}" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-chalk-100/90 hover:text-floodlight-400 transition-colors">
+                    Joined
+                </a>
+                <a href="{% url 'create_match' %}" class="inline-flex items-center gap-1.5 bg-floodlight-400 hover:bg-floodlight-500 text-pitch-950 font-bold text-sm px-3.5 py-2 rounded-lg transition-colors shadow-sm">
+                    + Host Match
+                </a>
+                <div class="hidden md:flex items-center gap-2 pl-2 border-l border-white/15">
+                    <span class="flex items-center justify-center h-8 w-8 rounded-full bg-pitch-600 text-chalk-50 font-display font-bold text-xs">{{ user.profile.initials }}</span>
+                </div>
+                <a href="{% url 'logout' %}" class="text-sm font-medium text-chalk-100/60 hover:text-rose-500 transition-colors">Log out</a>
+            {% else %}
+                <a href="{% url 'login' %}" class="text-sm font-semibold text-chalk-100/90 hover:text-floodlight-400 transition-colors">Log in</a>
+                <a href="{% url 'signup' %}" class="inline-flex items-center gap-1.5 bg-floodlight-400 hover:bg-floodlight-500 text-pitch-950 font-bold text-sm px-3.5 py-2 rounded-lg transition-colors shadow-sm">
+                    Sign up
+                </a>
+            {% endif %}
+        </div>
+    </div>
+    {% if user.is_authenticated %}
+    <div class="sm:hidden flex items-center gap-4 px-4 pb-2.5 -mt-1">
+        <a href="{% url 'my_hosted' %}" class="text-xs font-semibold text-chalk-100/80">Hosted</a>
+        <a href="{% url 'my_joined' %}" class="text-xs font-semibold text-chalk-100/80">Joined</a>
+    </div>
+    {% endif %}
+</nav>
+
+<main class="flex-1 w-full">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        {% if messages %}
+            <div id="toast-stack" class="space-y-2 mb-6">
+                {% for message in messages %}
+                    <div class="toast flex items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm font-medium
+                        {% if message.tags == 'error' %} bg-rose-500/10 border-rose-500/30 text-rose-600
+                        {% elif message.tags == 'success' %} bg-pitch-600/10 border-pitch-600/30 text-pitch-700
+                        {% else %} bg-sky-500/10 border-sky-500/30 text-sky-700 {% endif %}">
+                        <span>{{ message }}</span>
+                        <button onclick="this.closest('.toast').remove()" class="opacity-50 hover:opacity-100 font-bold leading-none">&times;</button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </div>
+</main>
+
+<footer class="border-t border-ink-900/10 py-6 text-center">
+    <p class="text-xs text-ink-500 font-medium">SquadTurf &middot; Fill your squad, fast.</p>
+</footer>
+
+<script src="{% static 'core/js/app.js' %}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>
