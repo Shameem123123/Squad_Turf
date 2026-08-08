@@ -15,7 +15,7 @@
 {% if turfs %}
     <div class="grid sm:grid-cols-2 gap-3">
         {% for turf in turfs %}
-            <a href="{% url 'create_match' %}?turf={{ turf.id }}" class="block bg-white border border-ink-900/10 rounded-xl p-4 hover:border-pitch-600/30 hover:-translate-y-0.5 transition-all">
+            <a href="{% url 'turf_detail' turf.slug %}" class="block bg-white border border-ink-900/10 rounded-xl p-4 hover:border-pitch-600/30 hover:-translate-y-0.5 transition-all">
                 <div class="flex items-start justify-between gap-3">
                     <div>
                         <h3 class="font-display font-bold text-base text-ink-900">{{ turf.name }}</h3>
@@ -25,7 +25,7 @@
                         <span class="shrink-0 text-xs font-bold px-2 py-1 rounded-md bg-floodlight-400/20 text-floodlight-500">{{ turf.open_match_count }} live</span>
                     {% endif %}
                 </div>
-                <p class="text-xs font-semibold text-pitch-600 mt-3">Host a match here →</p>
+                <p class="text-xs font-semibold text-pitch-600 mt-3">View matches &amp; host here →</p>
             </a>
         {% endfor %}
     </div>

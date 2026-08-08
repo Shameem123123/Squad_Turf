@@ -1,0 +1,14 @@
+{
+  "name": "SquadTurf",
+  "short_name": "SquadTurf",
+  "description": "Fill your squad, fast.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FBFAF6",
+  "theme_color": "#0B3D2E",
+  "icons": [
+    { "src": "/static/core/img/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/static/core/img/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

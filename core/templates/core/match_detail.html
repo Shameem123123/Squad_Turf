@@ -106,7 +106,9 @@
                                 <p class="text-sm text-ink-500 mb-3">Host contact: <span class="scoreclock font-bold text-pitch-600">📞 {{ match.host.profile.phone }}</span></p>
                             {% endif %}
                             {% if not is_past %}
-                                <a href="{% url 'leave_match' match.id %}" class="inline-flex text-sm font-semibold text-rose-600 border border-rose-500/30 hover:bg-rose-500/5 px-4 py-2 rounded-lg transition-colors">Step down</a>
+                                <a href="{% url 'leave_match' match.id %}" id="step-down-btn" class="inline-flex text-sm font-semibold text-rose-600 border border-rose-500/30 hover:bg-rose-500/5 px-4 py-2 rounded-lg transition-colors">
+                                    Step down <span id="step-down-countdown" class="ml-1 scoreclock"></span>
+                                </a>
                             {% endif %}
                         {% elif user_request.status == 'REJECTED' %}
                             <p class="font-semibold text-rose-600">❌ The host declined this request.</p>
@@ -175,6 +177,27 @@
 {% endblock %}
 
 {% block extra_js %}
+<script>
+  // Step-down button self-destructs after 20s so it can't sit around and be
+  // misused as an easy "leave anytime, no cost" escape hatch.
+  (function () {
+    var btn = document.getElementById('step-down-btn');
+    var countdownEl = document.getElementById('step-down-countdown');
+    if (!btn || !countdownEl) return;
+
+    var remaining = 20;
+    countdownEl.textContent = '(' + remaining + 's)';
+    var timer = setInterval(function () {
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearInterval(timer);
+        btn.classList.add('hidden');
+        return;
+      }
+      countdownEl.textContent = '(' + remaining + 's)';
+    }, 1000);
+  })();
+</script>
 <script>
   (function () {
     var picker = document.getElementById('star-picker');

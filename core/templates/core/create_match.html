@@ -56,6 +56,9 @@
             <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Kickoff time</label>
             {{ form.match_time_slot }}
             <p class="text-xs text-ink-500 mt-1.5" id="time_helper">Pick the exact time — half-hour slots, so it's easy to scan.</p>
+            <p class="text-xs text-floodlight-500 font-semibold mt-1 hidden" id="urgent_collision_note">
+                That time is within the next 2.5 hours, so this will be posted as an <strong>urgent</strong> match.
+            </p>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
@@ -88,12 +91,86 @@
 
 {% block extra_js %}
 <script>
+  var timeSelect = document.getElementById('id_match_time_slot');
+  var allTimeOptions = Array.prototype.slice.call(timeSelect.options).map(function (opt) {
+    return { value: opt.value, label: opt.textContent };
+  });
+
+  function slotMinutes(value) {
+    var parts = value.split(':');
+    return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+  }
+
+  function nowMinutes() {
+    var d = new Date();
+    return d.getHours() * 60 + d.getMinutes();
+  }
+
+  function isTomorrowChosen() {
+    var choice = document.querySelector('input[name="match_date_choice"]:checked');
+    return choice && choice.value === 'TOMORROW';
+  }
+
+  function rebuildUrgentOptions() {
+    var nowMin = nowMinutes();
+    var maxMin = nowMin + 150; // 2.5 hours, half-hour slots
+    var current = timeSelect.value;
+    timeSelect.innerHTML = '';
+    var kept = false;
+    allTimeOptions.forEach(function (opt) {
+      var m = slotMinutes(opt.value);
+      // handle same-day slots only; wrap past midnight is out of scope for "next 2.5h"
+      if (m >= nowMin - 30 && m <= maxMin) {
+        var el = document.createElement('option');
+        el.value = opt.value;
+        el.textContent = opt.label;
+        if (opt.value === current) kept = true;
+        timeSelect.appendChild(el);
+      }
+    });
+    if (!kept && timeSelect.options.length) {
+      timeSelect.value = timeSelect.options[0].value;
+    }
+  }
+
+  function restoreAllOptions() {
+    var current = timeSelect.value;
+    timeSelect.innerHTML = '';
+    allTimeOptions.forEach(function (opt) {
+      var el = document.createElement('option');
+      el.value = opt.value;
+      el.textContent = opt.label;
+      timeSelect.appendChild(el);
+    });
+    timeSelect.value = current;
+  }
+
+  function checkCollision() {
+    var type = document.querySelector('input[name="match_type"]:checked').value;
+    var note = document.getElementById('urgent_collision_note');
+    if (type !== 'SCHEDULED' || isTomorrowChosen()) {
+      note.classList.add('hidden');
+      return;
+    }
+    var nowMin = nowMinutes();
+    var maxMin = nowMin + 150;
+    var chosenMin = slotMinutes(timeSelect.value);
+    note.classList.toggle('hidden', !(chosenMin >= nowMin && chosenMin <= maxMin));
+  }
+
   function toggleDateBox() {
     var type = document.querySelector('input[name="match_type"]:checked').value;
     document.getElementById('scheduled_date_box').classList.toggle('hidden', type !== 'SCHEDULED');
     document.getElementById('time_helper').textContent = type === 'URGENT'
-      ? "Pick the exact time you're kicking off today — half-hour slots."
+      ? "Urgent matches must kick off within the next 2.5 hours — half-hour slots."
       : "Pick the exact kickoff time for the day you chose above.";
+
+    if (type === 'URGENT') {
+      rebuildUrgentOptions();
+    } else {
+      restoreAllOptions();
+    }
+    checkCollision();
   }
   function toggleCostInput() {
     var model = document.getElementById('id_cost_model').value;
@@ -102,6 +179,10 @@
   document.querySelectorAll('input[name="match_type"]').forEach(function (el) {
     el.addEventListener('change', toggleDateBox);
   });
+  document.querySelectorAll('input[name="match_date_choice"]').forEach(function (el) {
+    el.addEventListener('change', checkCollision);
+  });
+  timeSelect.addEventListener('change', checkCollision);
   document.getElementById('id_cost_model').addEventListener('change', toggleCostInput);
   toggleDateBox();
   toggleCostInput();

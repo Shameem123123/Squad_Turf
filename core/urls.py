@@ -13,6 +13,7 @@ urlpatterns = [
     # Feed & turf discovery
     path('', views.feed, name='feed'),
     path('turfs/', views.turf_directory, name='turf_directory'),
+    path('turfs/<slug:slug>/', views.turf_detail, name='turf_detail'),
     path('t/<slug:slug>/', views.turf_landing, name='turf_landing'),
 
     # Match lifecycle
@@ -35,4 +36,5 @@ urlpatterns = [
     path('push/subscribe/', views.push_subscribe, name='push_subscribe'),
     path('push/unsubscribe/', views.push_unsubscribe, name='push_unsubscribe'),
     path('push/vapid-public-key/', views.vapid_public_key, name='vapid_public_key'),
+    path('api/live/', views.live_status, name='live_status'),
 ]

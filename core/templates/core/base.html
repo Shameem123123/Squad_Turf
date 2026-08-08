@@ -29,44 +29,71 @@
   }
 </script>
 <link rel="stylesheet" href="{% static 'core/css/custom.css' %}">
+<link rel="manifest" href="{% static 'core/manifest.webmanifest' %}">
+<meta name="theme-color" content="#0B3D2E">
+<link rel="icon" href="{% static 'core/img/icon-192.png' %}">
+<link rel="apple-touch-icon" href="{% static 'core/img/icon-192.png' %}">
 </head>
-<body class="font-body bg-chalk-100 text-ink-900 min-h-screen flex flex-col">
-{% csrf_token %}{# ensures the csrftoken cookie exists for push.js's fetch calls #}
+<body class="font-body bg-chalk-100 text-ink-900 min-h-screen flex flex-col"
+      {% if user.is_authenticated %}data-live-sig="{{ live_sig }}"{% endif %}>
+{% csrf_token %}{# ensures the csrftoken cookie exists for push.js's / live.js's fetch calls #}
 
 <nav class="sticky top-0 z-50 bg-pitch-900 border-b-2 border-floodlight-400/70">
-    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+    <div class="max-w-5xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3">
         <a href="{% url 'feed' %}" class="flex items-center gap-2 group shrink-0">
             <span class="relative flex h-3 w-3">
                 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-floodlight-400 opacity-75"></span>
                 <span class="relative inline-flex rounded-full h-3 w-3 bg-floodlight-400"></span>
             </span>
-            <span class="font-display font-bold text-lg text-chalk-50 tracking-tight">SquadTurf</span>
+            <span class="font-display font-bold text-lg text-chalk-50 tracking-tight hidden sm:inline">SquadTurf</span>
         </a>
 
-        <div class="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
+        <div class="flex items-center gap-1 sm:gap-2 justify-end">
             {% if user.is_authenticated %}
-                <a href="{% url 'turf_directory' %}" class="hidden md:inline-flex items-center gap-1.5 text-sm font-semibold text-chalk-100/90 hover:text-floodlight-400 transition-colors">
-                    Turfs
+                <a href="{% url 'feed' %}" class="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-chalk-100/90 hover:text-floodlight-400 transition-colors px-1.5 sm:px-2">
+                    Home
                 </a>
-                <a href="{% url 'my_hosted' %}" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-chalk-100/90 hover:text-floodlight-400 transition-colors">
+                <a href="{% url 'my_hosted' %}" class="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-chalk-100/90 hover:text-floodlight-400 transition-colors px-1.5 sm:px-2">
                     Hosted
                 </a>
-                <a href="{% url 'my_joined' %}" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-chalk-100/90 hover:text-floodlight-400 transition-colors">
-                    Joined
+                <a href="{% url 'my_joined' %}" class="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-chalk-100/90 hover:text-floodlight-400 transition-colors px-1.5 sm:px-2">
+                    Requested
                 </a>
-                <a href="{% url 'notification_list' %}" class="relative inline-flex items-center justify-center h-9 w-9 rounded-lg hover:bg-white/10 transition-colors" aria-label="Notifications">
-                    <span class="text-lg">🔔</span>
-                    {% if unread_notification_count %}
-                        <span class="absolute -top-0.5 -right-0.5 flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold">{{ unread_notification_count }}</span>
-                    {% endif %}
+
+                <a href="{% url 'notification_list' %}" class="relative inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-lg hover:bg-white/10 transition-colors" aria-label="Notifications">
+                    <span class="text-base sm:text-lg" id="notif-bell">🔔</span>
+                    <span id="notif-badge" class="absolute -top-0.5 -right-0.5 flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold {% if not unread_notification_count %}hidden{% endif %}">{{ unread_notification_count }}</span>
                 </a>
-                <a href="{% url 'create_match' %}" class="inline-flex items-center gap-1.5 bg-floodlight-400 hover:bg-floodlight-500 text-pitch-950 font-bold text-sm px-3.5 py-2 rounded-lg transition-colors shadow-sm">
-                    + Host Match
+
+                <a href="{% url 'create_match' %}" class="hidden sm:inline-flex items-center gap-1.5 bg-floodlight-400 hover:bg-floodlight-500 text-pitch-950 font-bold text-sm px-3.5 py-2 rounded-lg transition-colors shadow-sm">
+                    + Host
                 </a>
-                <a href="{% url 'profile' %}" class="hidden md:flex items-center gap-2 pl-2 border-l border-white/15">
-                    <span class="flex items-center justify-center h-8 w-8 rounded-full bg-pitch-600 text-chalk-50 font-display font-bold text-xs">{{ user.profile.initials }}</span>
-                </a>
-                <a href="{% url 'logout' %}" class="text-sm font-medium text-chalk-100/60 hover:text-rose-500 transition-colors">Log out</a>
+
+                {# ---- Profile circle: round, initials only (no photo), logout lives inside its dropdown ---- #}
+                <div class="relative" id="profile-menu-wrap">
+                    <button id="profile-menu-btn" type="button" aria-haspopup="true" aria-expanded="false"
+                            class="flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-pitch-600 text-chalk-50 font-display font-bold text-xs hover:ring-2 hover:ring-floodlight-400/60 transition-shadow">
+                        {{ user.profile.initials }}
+                    </button>
+                    <div id="profile-menu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-ink-900/10 py-1.5 z-50">
+                        <p class="px-3.5 py-2 text-xs font-semibold text-ink-500 truncate border-b border-ink-900/10">{{ user.profile.display_name }}</p>
+                        <a href="{% url 'profile' %}" class="block px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">Profile</a>
+                        <a href="{% url 'create_match' %}" class="sm:hidden block px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">+ Host a match</a>
+                        <a href="{% url 'logout' %}" class="block px-3.5 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-500/5">Log out</a>
+                    </div>
+                </div>
+
+                {# ---- Overflow "more" menu: Turfs + anything else, keeps the main bar to a fixed set of icons ---- #}
+                <div class="relative" id="more-menu-wrap">
+                    <button id="more-menu-btn" type="button" aria-haspopup="true" aria-expanded="false"
+                            class="flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-lg hover:bg-white/10 text-chalk-100 transition-colors" aria-label="More">
+                        <span class="text-lg leading-none">≡</span>
+                    </button>
+                    <div id="more-menu" class="hidden absolute right-0 mt-2 w-44 bg-white rounded-xl shadow-lg border border-ink-900/10 py-1.5 z-50">
+                        <a href="{% url 'turf_directory' %}" class="block px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">Turfs</a>
+                        <a href="{% url 'notification_list' %}" class="block px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">Notifications</a>
+                    </div>
+                </div>
             {% else %}
                 <a href="{% url 'login' %}" class="text-sm font-semibold text-chalk-100/90 hover:text-floodlight-400 transition-colors">Log in</a>
                 <a href="{% url 'signup' %}" class="inline-flex items-center gap-1.5 bg-floodlight-400 hover:bg-floodlight-500 text-pitch-950 font-bold text-sm px-3.5 py-2 rounded-lg transition-colors shadow-sm">
@@ -75,14 +102,6 @@
             {% endif %}
         </div>
     </div>
-    {% if user.is_authenticated %}
-    <div class="sm:hidden flex items-center gap-4 px-4 pb-2.5 -mt-1">
-        <a href="{% url 'turf_directory' %}" class="text-xs font-semibold text-chalk-100/80">Turfs</a>
-        <a href="{% url 'my_hosted' %}" class="text-xs font-semibold text-chalk-100/80">Hosted</a>
-        <a href="{% url 'my_joined' %}" class="text-xs font-semibold text-chalk-100/80">Joined</a>
-        <a href="{% url 'profile' %}" class="text-xs font-semibold text-chalk-100/80">Profile</a>
-    </div>
-    {% endif %}
 </nav>
 
 {% if user.is_authenticated %}
@@ -123,6 +142,39 @@
 
 <script src="{% static 'core/js/app.js' %}"></script>
 {% if user.is_authenticated %}
+<script>
+  (function () {
+    function setupMenu(btnId, menuId) {
+      var btn = document.getElementById(btnId);
+      var menu = document.getElementById(menuId);
+      if (!btn || !menu) return;
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var isOpen = !menu.classList.contains('hidden');
+        document.querySelectorAll('.hidden-menu-open').forEach(function (m) {
+          m.classList.add('hidden');
+          m.classList.remove('hidden-menu-open');
+        });
+        if (!isOpen) {
+          menu.classList.remove('hidden');
+          menu.classList.add('hidden-menu-open');
+          btn.setAttribute('aria-expanded', 'true');
+        } else {
+          btn.setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
+    setupMenu('profile-menu-btn', 'profile-menu');
+    setupMenu('more-menu-btn', 'more-menu');
+    document.addEventListener('click', function () {
+      document.querySelectorAll('.hidden-menu-open').forEach(function (m) {
+        m.classList.add('hidden');
+        m.classList.remove('hidden-menu-open');
+      });
+    });
+  })();
+</script>
+<script src="{% static 'core/js/live.js' %}"></script>
 <script src="{% static 'core/js/push.js' %}"></script>
 <script>
   (function () {
@@ -141,8 +193,16 @@
 
     if (enableBtn) {
       enableBtn.addEventListener('click', function () {
+        enableBtn.disabled = true;
+        enableBtn.textContent = 'Enabling…';
         window.SquadTurfPush.subscribe().then(function (result) {
-          banner.classList.add('hidden');
+          if (result.ok) {
+            banner.classList.add('hidden');
+          } else {
+            enableBtn.disabled = false;
+            enableBtn.textContent = 'Enable';
+            alert(window.SquadTurfPush.messageFor(result.reason));
+          }
         });
       });
     }

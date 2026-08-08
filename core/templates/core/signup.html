@@ -8,7 +8,7 @@
             <span class="h-2.5 w-2.5 rounded-full bg-floodlight-400"></span>
         </span>
         <h1 class="font-display font-bold text-2xl text-ink-900">Create your player profile</h1>
-        <p class="text-ink-500 text-sm mt-1">Just your name and number — no passwords, no fuss.</p>
+        <p class="text-ink-500 text-sm mt-1">Name, number, password — verified with a one-time code.</p>
     </div>
 
     <form method="POST" class="bg-white border border-ink-900/10 rounded-2xl p-6 shadow-sm space-y-4">
@@ -25,6 +25,20 @@
             {{ form.phone }}
             {% for error in form.phone.errors %}<p class="text-xs text-rose-600 mt-1">{{ error }}</p>{% endfor %}
         </div>
+
+        <div>
+            <label for="{{ form.password.id_for_label }}" class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Password</label>
+            {{ form.password }}
+            {% for error in form.password.errors %}<p class="text-xs text-rose-600 mt-1">{{ error }}</p>{% endfor %}
+        </div>
+
+        <div>
+            <label for="{{ form.confirm_password.id_for_label }}" class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Confirm password</label>
+            {{ form.confirm_password }}
+            {% for error in form.confirm_password.errors %}<p class="text-xs text-rose-600 mt-1">{{ error }}</p>{% endfor %}
+        </div>
+
+        {% for error in form.non_field_errors %}<p class="text-xs text-rose-600">{{ error }}</p>{% endfor %}
 
         <button type="submit" class="w-full bg-pitch-900 hover:bg-pitch-700 text-chalk-50 font-bold text-sm py-3 rounded-xl transition-colors">
             Sign up

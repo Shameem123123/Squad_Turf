@@ -32,12 +32,37 @@ def _generate_code():
 
 
 def _dispatch_otp(phone, code):
-    """The one place that actually 'sends' the OTP. Free by default:
-    prints it to the server console/log. Swap this out for a real
-    SMS/WhatsApp API call when you're ready to go live.
+    """The one place that actually 'sends' the OTP.
+
+    If TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN are configured (see
+    settings.py), the code is sent for real over SMS (TWILIO_FROM_NUMBER)
+    or WhatsApp (TWILIO_WHATSAPP_FROM) — set whichever one you have.
+    Otherwise it falls back to logging the code to the server console, which
+    is why codes "don't arrive" until a provider is configured.
     """
+    account_sid = getattr(settings, 'TWILIO_ACCOUNT_SID', '')
+    auth_token = getattr(settings, 'TWILIO_AUTH_TOKEN', '')
+    from_number = getattr(settings, 'TWILIO_FROM_NUMBER', '')
+    whatsapp_from = getattr(settings, 'TWILIO_WHATSAPP_FROM', '')
+
+    if account_sid and auth_token and (from_number or whatsapp_from):
+        try:
+            from twilio.rest import Client
+            client = Client(account_sid, auth_token)
+            body = f"Your SquadTurf verification code is {code}. It expires in {OTP_VALID_MINUTES} minutes."
+            to_number = f"+91{phone}" if not phone.startswith('+') else phone
+
+            if whatsapp_from:
+                client.messages.create(body=body, from_=whatsapp_from, to=f"whatsapp:{to_number}")
+            else:
+                client.messages.create(body=body, from_=from_number, to=to_number)
+            logger.info("SquadTurf OTP dispatched via Twilio to %s", phone)
+            return
+        except Exception:
+            logger.exception("Twilio OTP send failed for %s — falling back to console log.", phone)
+
     logger.info("SquadTurf OTP for %s: %s (valid %s min)", phone, code, OTP_VALID_MINUTES)
-    print(f"[SquadTurf OTP] {phone} -> {code}")  # visible in `runserver` console
+    print(f"[SquadTurf OTP] {phone} -> {code}")  # visible in `runserver` console — no SMS provider configured
 
 
 def can_resend(phone, purpose):

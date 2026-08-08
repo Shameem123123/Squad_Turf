@@ -21,39 +21,79 @@
     return match ? match.pop() : '';
   }
 
+  var REASON_MESSAGES = {
+    unsupported: "Push notifications aren't supported in this browser.",
+    denied: "Notification permission was blocked. Enable it in your browser's site settings and try again.",
+    not_configured: 'Push isn\u2019t configured on the server yet.',
+    subscribe_failed: "Couldn't set up notifications on this device. Please try again.",
+    server_failed: "Saved locally, but the server didn't confirm the subscription. Please try again.",
+  };
+
   async function subscribeToPush() {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       return { ok: false, reason: 'unsupported' };
     }
 
-    var permission = await Notification.requestPermission();
+    var permission;
+    try {
+      permission = await Notification.requestPermission();
+    } catch (e) {
+      return { ok: false, reason: 'denied' };
+    }
     if (permission !== 'granted') {
       return { ok: false, reason: 'denied' };
     }
 
-    var registration = await navigator.serviceWorker.register('/sw.js');
-    await navigator.serviceWorker.ready;
+    var registration;
+    try {
+      registration = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+    } catch (e) {
+      return { ok: false, reason: 'subscribe_failed' };
+    }
 
-    var keyResp = await fetch('/push/vapid-public-key/');
-    var keyData = await keyResp.json();
+    var keyData;
+    try {
+      var keyResp = await fetch('/push/vapid-public-key/');
+      keyData = await keyResp.json();
+    } catch (e) {
+      return { ok: false, reason: 'not_configured' };
+    }
     if (!keyData.publicKey) {
       return { ok: false, reason: 'not_configured' };
     }
 
-    var existing = await registration.pushManager.getSubscription();
-    var subscription = existing || await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(keyData.publicKey),
-    });
+    var subscription;
+    try {
+      var existing = await registration.pushManager.getSubscription();
+      subscription = existing || await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(keyData.publicKey),
+      });
+    } catch (e) {
+      return { ok: false, reason: 'subscribe_failed' };
+    }
 
-    await fetch('/push/subscribe/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-      body: JSON.stringify(subscription.toJSON()),
-    });
+    try {
+      var saveResp = await fetch('/push/subscribe/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify(subscription.toJSON()),
+      });
+      if (!saveResp.ok) {
+        return { ok: false, reason: 'server_failed' };
+      }
+    } catch (e) {
+      return { ok: false, reason: 'server_failed' };
+    }
 
     return { ok: true };
   }
 
-  window.SquadTurfPush = { subscribe: subscribeToPush };
+  window.SquadTurfPush = {
+    subscribe: subscribeToPush,
+    messageFor: function (reason) {
+      return REASON_MESSAGES[reason] || "Couldn't enable notifications. Please try again.";
+    },
+  };
 })();

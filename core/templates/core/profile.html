@@ -66,7 +66,17 @@
   var btn = document.getElementById('profile-push-enable');
   if (btn) {
     btn.addEventListener('click', function () {
-      window.SquadTurfPush.subscribe().then(function () { window.location.reload(); });
+      btn.disabled = true;
+      btn.textContent = 'Enabling…';
+      window.SquadTurfPush.subscribe().then(function (result) {
+        if (result.ok) {
+          window.location.reload();
+        } else {
+          btn.disabled = false;
+          btn.textContent = 'Enable';
+          alert(window.SquadTurfPush.messageFor(result.reason));
+        }
+      });
     });
   }
 </script>

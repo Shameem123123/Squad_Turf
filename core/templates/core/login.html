@@ -8,7 +8,7 @@
             <span class="h-2.5 w-2.5 rounded-full bg-floodlight-400"></span>
         </span>
         <h1 class="font-display font-bold text-2xl text-ink-900">Welcome back</h1>
-        <p class="text-ink-500 text-sm mt-1">Log in with your mobile number.</p>
+        <p class="text-ink-500 text-sm mt-1">Log in with your mobile number and password.</p>
     </div>
 
     <form method="POST" class="bg-white border border-ink-900/10 rounded-2xl p-6 shadow-sm space-y-4">
@@ -18,6 +18,12 @@
             <label for="{{ form.phone.id_for_label }}" class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Mobile number</label>
             {{ form.phone }}
             {% for error in form.phone.errors %}<p class="text-xs text-rose-600 mt-1">{{ error }}</p>{% endfor %}
+        </div>
+
+        <div>
+            <label for="{{ form.password.id_for_label }}" class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Password</label>
+            {{ form.password }}
+            {% for error in form.password.errors %}<p class="text-xs text-rose-600 mt-1">{{ error }}</p>{% endfor %}
         </div>
 
         <button type="submit" class="w-full bg-pitch-900 hover:bg-pitch-700 text-chalk-50 font-bold text-sm py-3 rounded-xl transition-colors">

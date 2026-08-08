@@ -23,6 +23,10 @@
     </div>
 </section>
 
+{# ---- Everything inside live-region auto-refreshes via live.js polling, ---- #}
+{# ---- so new matches / join requests / responses show up without a manual reload. #}
+<div id="live-region">
+
 {% if host_notifications %}
 <section class="mb-6">
     <div class="rounded-2xl border-2 border-pitch-600/40 bg-pitch-600/5 p-5">
@@ -130,6 +134,7 @@
     {% endif %}
 </section>
 
+{% if show_urgent_section %}
 <section class="mb-10">
     <div class="flex items-center gap-2 mb-4">
         <span class="relative flex h-2.5 w-2.5">
@@ -138,7 +143,7 @@
         </span>
         <h2 class="font-display font-bold text-lg text-ink-900">Starting soon</h2>
     </div>
-    <p class="text-xs text-ink-500 -mt-3 mb-4">Kicking off within the next 4 hours — whether hosted as urgent or scheduled.</p>
+    <p class="text-xs text-ink-500 -mt-3 mb-4">Kicking off within the next 2 hours — whether hosted as urgent or scheduled.</p>
 
     {% if urgent_matches %}
         <div class="grid gap-3">
@@ -148,10 +153,11 @@
         </div>
     {% else %}
         <div class="rounded-2xl border border-dashed border-ink-900/15 py-10 text-center">
-            <p class="text-ink-500 text-sm">Nothing kicking off in the next few hours. Be the first to call one.</p>
+            <p class="text-ink-500 text-sm">Nothing kicking off in the next couple hours. Be the first to call one.</p>
         </div>
     {% endif %}
 </section>
+{% endif %}
 
 <section class="mb-10">
     <div class="flex items-center gap-2 mb-4">
@@ -185,5 +191,7 @@
     </div>
 </section>
 {% endif %}
+
+</div>{# /live-region #}
 
 {% endblock %}

@@ -1,0 +1,35 @@
+{% extends 'core/base.html' %}
+{% load core_extras %}
+{% block title %}{{ turf.name }} — SquadTurf{% endblock %}
+
+{% block content %}
+<a href="{% url 'turf_directory' %}" class="inline-flex items-center gap-1 text-sm font-medium text-ink-500 hover:text-ink-900 mb-4">← All turfs</a>
+
+<div class="flex items-start justify-between gap-3 mb-6">
+    <div>
+        <h1 class="font-display font-bold text-2xl text-ink-900">{{ turf.name }}</h1>
+        <p class="text-ink-500 text-sm mt-1">📍 {{ turf.location_name }}</p>
+        <p class="text-xs font-bold text-floodlight-500 mt-1">{{ matches|length }} live match{{ matches|length|pluralize }} right now</p>
+    </div>
+    {% if user.is_authenticated %}
+        <a href="{% url 'create_match' %}?turf={{ turf.id }}" class="shrink-0 inline-flex items-center gap-1.5 bg-floodlight-400 hover:bg-floodlight-500 text-pitch-950 font-bold text-sm px-4 py-2.5 rounded-xl transition-colors shadow-sm">
+            Host a match here →
+        </a>
+    {% endif %}
+</div>
+
+{% if matches %}
+    <div class="grid gap-3">
+        {% for match in matches %}
+            {% include 'core/_match_ticket.html' with match=match urgent=match.is_imminent %}
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="rounded-2xl border border-dashed border-ink-900/15 py-14 text-center">
+        <p class="text-ink-500 text-sm mb-3">No open matches at this turf right now.</p>
+        {% if user.is_authenticated %}
+            <a href="{% url 'create_match' %}?turf={{ turf.id }}" class="inline-flex text-sm font-bold text-pitch-700 hover:underline">Be the first to host one →</a>
+        {% endif %}
+    </div>
+{% endif %}
+{% endblock %}

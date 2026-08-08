@@ -45,6 +45,14 @@ class SignupForm(forms.Form):
         max_length=15,
         widget=forms.TextInput(attrs={'placeholder': 'e.g. 9876543210', 'inputmode': 'numeric', 'class': INPUT_CLASSES}),
     )
+    password = forms.CharField(
+        min_length=6, max_length=128,
+        widget=forms.PasswordInput(attrs={'placeholder': 'At least 6 characters', 'class': INPUT_CLASSES}),
+    )
+    confirm_password = forms.CharField(
+        max_length=128,
+        widget=forms.PasswordInput(attrs={'placeholder': 'Re-enter password', 'class': INPUT_CLASSES}),
+    )
 
     def clean_name(self):
         name = self.cleaned_data['name'].strip()
@@ -58,6 +66,14 @@ class SignupForm(forms.Form):
             raise forms.ValidationError("Enter a valid 10-digit Indian mobile number.")
         return phone
 
+    def clean(self):
+        cleaned = super().clean()
+        password = cleaned.get('password')
+        confirm = cleaned.get('confirm_password')
+        if password and confirm and password != confirm:
+            self.add_error('confirm_password', "Passwords don't match.")
+        return cleaned
+
 
 class LoginForm(forms.Form):
     phone = forms.CharField(
@@ -65,6 +81,9 @@ class LoginForm(forms.Form):
         widget=forms.TextInput(
             attrs={'placeholder': 'e.g. 9876543210', 'inputmode': 'numeric', 'autofocus': True, 'class': INPUT_CLASSES}
         ),
+    )
+    password = forms.CharField(
+        widget=forms.PasswordInput(attrs={'placeholder': 'Your password', 'class': INPUT_CLASSES}),
     )
 
     def clean_phone(self):

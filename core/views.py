@@ -4,7 +4,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import login, logout
+from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.db import transaction
@@ -23,12 +23,14 @@ FEED_LOOKBACK = timedelta(hours=1)      # how long an OPEN match stays live on t
 NOTIF_LOOKBACK = timedelta(hours=2)     # how long home-page notifications stay visible after kickoff
 PAST_CUTOFF = timedelta(hours=1)        # when a match is considered "over" in dashboards
 RECENT_PLAYED_WINDOW = timedelta(hours=4)
-IMMINENT_WINDOW = timedelta(hours=4)    # a match this close to kickoff is treated as urgent, whatever it was hosted as
+IMMINENT_WINDOW = timedelta(hours=2)    # a match this close to kickoff is treated as urgent, whatever it was hosted as
+URGENT_MAX_WINDOW = timedelta(hours=2, minutes=30)  # urgent matches can only be booked up to this far out
 
 
 # ---------------------------------------------------------------------------
-# Auth — passwordless: name + phone, verified with an OTP (unless an admin
-# has switched OTP off in /admin/ for easier local testing).
+# Auth — signup needs name + phone + OTP (proves the number is real).
+# Login only needs phone + password afterwards, so day-to-day sign-in
+# doesn't cost an OTP/SMS every time.
 # ---------------------------------------------------------------------------
 
 def signup(request):
@@ -39,18 +41,19 @@ def signup(request):
     if request.method == 'POST' and form.is_valid():
         name = form.cleaned_data['name']
         phone = form.cleaned_data['phone']
+        password = form.cleaned_data['password']
 
         if Profile.objects.filter(phone=phone).exists():
             messages.error(request, "That mobile number is already registered. Please log in instead.")
             return redirect('login')
 
         if not otp_service.otp_required():
-            _create_and_login(request, name, phone)
+            _create_and_login(request, name, phone, password)
             messages.success(request, f"Welcome to SquadTurf, {name}! 🎉")
             return redirect('feed')
 
         otp, debug_code = otp_service.issue_otp(phone, 'SIGNUP')
-        request.session['pending_auth'] = {'flow': 'signup', 'name': name, 'phone': phone}
+        request.session['pending_auth'] = {'flow': 'signup', 'name': name, 'phone': phone, 'password': password}
         if debug_code:
             messages.info(request, f"Dev mode — no SMS provider configured. Your code is {debug_code}.")
         else:
@@ -67,24 +70,21 @@ def login_view(request):
     form = LoginForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
         phone = form.cleaned_data['phone']
+        password = form.cleaned_data['password']
         try:
             profile = Profile.objects.select_related('user').get(phone=phone)
         except Profile.DoesNotExist:
             messages.error(request, "No account found with that number. Please sign up first.")
             return redirect('signup')
 
-        if not otp_service.otp_required():
-            login(request, profile.user)
-            messages.success(request, f"Welcome back, {profile.display_name}! 👋")
-            return redirect('feed')
+        user = authenticate(request, username=profile.user.username, password=password)
+        if user is None:
+            form.add_error('password', "Incorrect password.")
+            return render(request, 'core/login.html', {'form': form})
 
-        otp, debug_code = otp_service.issue_otp(phone, 'LOGIN')
-        request.session['pending_auth'] = {'flow': 'login', 'phone': phone}
-        if debug_code:
-            messages.info(request, f"Dev mode — no SMS provider configured. Your code is {debug_code}.")
-        else:
-            messages.success(request, f"We've sent a 6-digit code to {phone}.")
-        return redirect('verify_otp')
+        login(request, user)
+        messages.success(request, f"Welcome back, {profile.display_name}! 👋")
+        return redirect('feed')
 
     return render(request, 'core/login.html', {'form': form})
 
@@ -96,21 +96,14 @@ def verify_otp(request):
         return redirect('login')
 
     phone = pending['phone']
-    flow = pending['flow']
-    purpose = 'SIGNUP' if flow == 'signup' else 'LOGIN'
 
     form = OtpForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
-        ok, error = otp_service.verify_otp(phone, purpose, form.cleaned_data['code'])
+        ok, error = otp_service.verify_otp(phone, 'SIGNUP', form.cleaned_data['code'])
         if ok:
             del request.session['pending_auth']
-            if flow == 'signup':
-                _create_and_login(request, pending['name'], phone)
-                messages.success(request, f"Welcome to SquadTurf, {pending['name']}! 🎉")
-            else:
-                profile = Profile.objects.select_related('user').get(phone=phone)
-                login(request, profile.user)
-                messages.success(request, f"Welcome back, {profile.display_name}! 👋")
+            _create_and_login(request, pending['name'], phone, pending['password'])
+            messages.success(request, f"Welcome to SquadTurf, {pending['name']}! 🎉")
             return redirect('feed')
         messages.error(request, error)
 
@@ -125,7 +118,7 @@ def resend_otp(request):
         return redirect('login')
 
     phone = pending['phone']
-    purpose = 'SIGNUP' if pending['flow'] == 'signup' else 'LOGIN'
+    purpose = 'SIGNUP'
 
     if not otp_service.can_resend(phone, purpose):
         messages.error(request, f"Please wait a few seconds before requesting another code.")
@@ -139,7 +132,7 @@ def resend_otp(request):
     return redirect('verify_otp')
 
 
-def _create_and_login(request, name, phone):
+def _create_and_login(request, name, phone, password):
     base_username = name.lower().replace(' ', '_') or 'player'
     username = base_username
     counter = 1
@@ -147,7 +140,7 @@ def _create_and_login(request, name, phone):
         username = f"{base_username}_{counter}"
         counter += 1
 
-    user = User.objects.create_user(username=username, first_name=name)
+    user = User.objects.create_user(username=username, first_name=name, password=password)
     Profile.objects.create(user=user, phone=phone)
     login(request, user)
 
@@ -248,6 +241,9 @@ def feed(request):
         'filter_turfs': filter_turfs,
         'day_filter': day_filter,
         'turf_filter': turf_filter,
+        # Tomorrow can never contain an "urgent" (<=2h to kickoff) match, so
+        # don't show an always-empty "Starting soon" section for that view.
+        'show_urgent_section': day_filter != 'tomorrow',
     }
     return render(request, 'core/feed.html', context)
 
@@ -274,6 +270,33 @@ def turf_directory(request):
     return render(request, 'core/turfs.html', {'turfs': turfs, 'search': search})
 
 
+def turf_detail(request, slug):
+    """A single turf's page: live match count + every currently open match
+    there (a filtered view of the feed, scoped to this ground), plus a
+    shortcut to host a new match at the same turf."""
+    turf = get_object_or_404(Turf, slug=slug, is_active=True)
+    now = timezone.now()
+    live_cutoff = now - FEED_LOOKBACK
+    imminent_cutoff = now + IMMINENT_WINDOW
+
+    matches = list(
+        Match.objects.filter(turf=turf, status=Match.Status.OPEN, match_time__gte=live_cutoff)
+        .select_related('turf', 'host').order_by('match_time')
+    )
+
+    user_request_map = {}
+    if request.user.is_authenticated:
+        user_request_map = dict(
+            JoinRequest.objects.filter(player=request.user).values_list('match_id', 'status')
+        )
+
+    for m in matches:
+        m.is_imminent = m.match_time <= imminent_cutoff
+        m.user_req_status = user_request_map.get(m.id)
+
+    return render(request, 'core/turf_detail.html', {'turf': turf, 'matches': matches})
+
+
 # ---------------------------------------------------------------------------
 # Match lifecycle
 # ---------------------------------------------------------------------------
@@ -289,7 +312,8 @@ def create_match(request):
             match.host = request.user
             match.status = Match.Status.OPEN
 
-            local_today = timezone.localtime(timezone.now()).date()
+            now = timezone.now()
+            local_today = timezone.localtime(now).date()
             if match.match_type == Match.MatchType.URGENT:
                 chosen_date = local_today
             else:
@@ -300,6 +324,26 @@ def create_match(request):
             hour, minute = (int(x) for x in slot.split(':'))
             naive_dt = datetime.combine(chosen_date, datetime.min.time().replace(hour=hour, minute=minute))
             match.match_time = timezone.make_aware(naive_dt) if timezone.is_naive(naive_dt) else naive_dt
+
+            urgent_cutoff = now + URGENT_MAX_WINDOW
+
+            if match.match_type == Match.MatchType.URGENT:
+                if match.match_time < now:
+                    form.add_error(None, "That time has already passed — pick a later slot.")
+                    return render(request, 'core/create_match.html', {'form': form})
+                if match.match_time > urgent_cutoff:
+                    form.add_error(
+                        None,
+                        "Urgent matches can only be booked up to 2.5 hours from now. "
+                        "Choose 'Plan ahead' to schedule further out."
+                    )
+                    return render(request, 'core/create_match.html', {'form': form})
+            else:
+                # A "scheduled" match that actually lands inside the urgent
+                # window (today, within the next 2.5h) collides with the
+                # urgent bucket — host it as urgent instead, automatically.
+                if chosen_date == local_today and now <= match.match_time <= urgent_cutoff:
+                    match.match_type = Match.MatchType.URGENT
 
             if match.cost_model == Match.CostModel.FREE:
                 match.per_head_amount = 0
@@ -611,7 +655,10 @@ def profile(request):
 
     stats = {
         'hosted_count': Match.objects.filter(host=request.user).count(),
-        'joined_count': JoinRequest.objects.filter(player=request.user, status=JoinRequest.Status.ACCEPTED).count(),
+        # "Played" only counts matches actually completed — i.e. the user
+        # was rated (showed-up/star review) by the host or a teammate
+        # afterwards. An accepted-but-not-yet-played request doesn't count.
+        'joined_count': Rating.objects.filter(rated_user=request.user).values('match_id').distinct().count(),
         'average_rating': prof.average_rating(),
         'rating_count': prof.rating_count(),
         'reliability_pct': prof.reliability_pct(),
@@ -671,6 +718,25 @@ def push_unsubscribe(request):
     if endpoint:
         PushSubscription.objects.filter(user=request.user, endpoint=endpoint).delete()
     return JsonResponse({'ok': True})
+
+
+def live_status(request):
+    """Polled every few seconds by live.js so the feed, notification badge
+    and pending-request lists update without a manual page refresh — no
+    websockets/Celery required, just a cheap signature comparison."""
+    if not request.user.is_authenticated:
+        return JsonResponse({'sig': '0', 'unread': 0})
+
+    latest_match_id = Match.objects.order_by('-id').values_list('id', flat=True).first() or 0
+    latest_notif_id = Notification.objects.filter(recipient=request.user).order_by('-id') \
+        .values_list('id', flat=True).first() or 0
+    latest_join_id = JoinRequest.objects.filter(
+        Q(match__host=request.user) | Q(player=request.user)
+    ).order_by('-id').values_list('id', flat=True).first() or 0
+    unread = Notification.objects.filter(recipient=request.user, is_read=False).count()
+
+    sig = f"{latest_match_id}-{latest_notif_id}-{latest_join_id}"
+    return JsonResponse({'sig': sig, 'unread': unread})
 
 
 def vapid_public_key(request):

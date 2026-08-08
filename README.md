@@ -179,3 +179,51 @@ floodlight amber rather than a generic SaaS palette.
 - Add real SMS delivery in `core/otp.py` when you're ready to go live.
 - Add a lightweight geolocation filter so the feed only shows nearby turfs.
 - Add a proper task queue (Celery/RQ) if the reminder volume outgrows cron.
+
+---
+
+## Update notes (this revision)
+
+**Auth** — Signup now collects name + phone + password, still OTP-verified.
+Login is phone + password (no OTP), so day-to-day sign-in no longer costs an
+SMS. Existing accounts from before this change have no password set — have
+those users use "Forgot password" via `/admin/` (reset from the Django
+admin) once, or re-signup.
+
+**OTP delivery** — wire a real provider via env vars so codes actually
+arrive on a phone:
+```
+TWILIO_ACCOUNT_SID=...
+TWILIO_AUTH_TOKEN=...
+TWILIO_FROM_NUMBER=+1XXXXXXXXXX        # for SMS
+# or
+TWILIO_WHATSAPP_FROM=whatsapp:+14155238886   # for WhatsApp-based OTP
+```
+With none of these set, codes still just log to the console (dev mode), which
+is why "OTP not received" happens on an unconfigured deployment.
+
+**Persistent storage (users vanishing)** — SQLite is a single file on local
+disk; most free hosts wipe it on redeploy. Set `DATABASE_URL` to a persistent
+Postgres instance (Render/Railway/Supabase/Neon all offer a free tier) and
+the app switches automatically — no other code changes needed. Without it,
+you're back to ephemeral SQLite.
+
+**Push notifications** — a working default VAPID key pair now ships so
+"Enable" works out of the box; generate your own for a real deployment with
+`python manage.py generate_vapid_keys`. For notifications to arrive even
+when the browser is fully closed on mobile, the site should be "Added to
+Home Screen" (a `manifest.webmanifest` is now served for this). This is the
+practical ceiling for background push from a website — a native app store
+app is the only way to fully match WhatsApp/Instagram-style delivery.
+
+**Live updates** — `/api/live/` is polled every ~8s client-side; the feed,
+notification badge and request lists refresh in place without a manual
+reload or a websocket server.
+
+**Match timing** — "Starting soon" window tightened from 4h to 2h. Urgent
+matches can only be booked up to 2.5h out; a "Scheduled" match landing
+inside that window is automatically posted as Urgent instead.
+
+**Header** — condensed to Home / Hosted / Requested / bell / profile circle
+(initials only — logout lives inside that dropdown) + a "≡" overflow menu
+for Turfs, to stop the header overflowing on mobile.
