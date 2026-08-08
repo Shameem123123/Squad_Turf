@@ -1,3 +1,4 @@
+{% load core_extras %}
 <a href="{% url 'match_detail' match.id %}" class="ticket-link block">
     <article class="ticket {% if urgent %}ticket-urgent{% else %}ticket-scheduled{% endif %}">
         <div class="p-4 sm:p-5 min-w-0">
@@ -6,24 +7,33 @@
                     <h3 class="font-display font-bold text-base text-ink-900 truncate">{{ match.turf.name }}</h3>
                     <p class="text-xs text-ink-500 mt-0.5">📍 {{ match.turf.location_name }}</p>
                 </div>
-                <span class="shrink-0 scoreclock text-xs font-bold px-2.5 py-1 rounded-md
-                    {% if urgent %} bg-floodlight-400/20 text-floodlight-500 {% else %} bg-pitch-600/10 text-pitch-700 {% endif %}">
-                    {{ match.players_needed }} NEEDED
-                </span>
+                {% if over %}
+                    <span class="shrink-0 scoreclock text-xs font-bold px-2.5 py-1 rounded-md bg-ink-900/10 text-ink-500">OVER</span>
+                {% elif match.status == 'FILLED' %}
+                    <span class="shrink-0 scoreclock text-xs font-bold px-2.5 py-1 rounded-md bg-ink-900/10 text-ink-700">FULL</span>
+                {% else %}
+                    <span class="shrink-0 scoreclock text-xs font-bold px-2.5 py-1 rounded-md
+                        {% if urgent %} bg-floodlight-400/20 text-floodlight-500 {% else %} bg-pitch-600/10 text-pitch-700 {% endif %}">
+                        {{ match.players_needed }} NEEDED
+                    </span>
+                {% endif %}
             </div>
 
             <div class="field-divider my-3"></div>
 
             <div class="flex items-center justify-between gap-3 text-sm">
                 <span class="scoreclock font-semibold text-ink-700">
-                    {% if urgent %}⏱ {{ match.match_time|date:"h:i A" }} today{% else %}📅 {{ match.match_time|date:"D, d M · h:i A" }}{% endif %}
+                    {% if urgent %}⏱{% else %}📅{% endif %} {{ match.match_time|relative_day }}
                 </span>
                 <span class="text-ink-500 text-xs font-medium">{{ match.cost_display }}</span>
             </div>
         </div>
 
         <div class="ticket-stub">
-            {% if user.is_authenticated and match.host_id == user.id %}
+            {% if over %}
+                <span class="text-[10px] font-bold text-ink-500 uppercase tracking-wide">Played</span>
+                <span class="text-xs font-bold text-ink-500">View →</span>
+            {% elif user.is_authenticated and match.host_id == user.id %}
                 <span class="text-[10px] font-bold text-ink-500 uppercase tracking-wide">Hosted by</span>
                 <span class="text-xs font-bold text-ink-900">You</span>
             {% elif match.user_req_status %}

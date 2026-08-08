@@ -2,11 +2,11 @@
 
 {% block content %}
 
-<section class="mb-10 sm:mb-12">
+<section class="mb-8 sm:mb-10">
     <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
             <p class="scoreclock text-xs text-pitch-600 tracking-widest mb-2">
-                {{ urgent_matches|length }} URGENT &middot; {{ scheduled_matches|length }} SCHEDULED
+                {{ urgent_matches|length }} STARTING SOON &middot; {{ scheduled_matches|length }} LATER
             </p>
             <h1 class="font-display font-bold text-3xl sm:text-4xl text-ink-900 tracking-tight leading-tight">
                 Need players?<br class="hidden sm:block"> Kick off in minutes.
@@ -24,7 +24,7 @@
 </section>
 
 {% if host_notifications %}
-<section class="mb-8">
+<section class="mb-6">
     <div class="rounded-2xl border-2 border-pitch-600/40 bg-pitch-600/5 p-5">
         <h4 class="font-display font-bold text-sm text-pitch-700 mb-3 tracking-wide uppercase">
             Requests for your matches ({{ host_notifications.count }})
@@ -36,6 +36,9 @@
                     <div class="min-w-0">
                         <p class="font-semibold text-sm text-ink-900 truncate">
                             {{ notif.player.first_name|default:notif.player.username }}
+                            {% if notif.player.profile.average_rating %}
+                                <span class="text-xs font-bold text-floodlight-500 ml-1">★ {{ notif.player.profile.average_rating }}</span>
+                            {% endif %}
                             {% if notif.status == 'ACCEPTED' and notif.player.profile.phone %}
                                 <span class="scoreclock text-xs text-pitch-600 ml-1.5">📞 {{ notif.player.profile.phone }}</span>
                             {% endif %}
@@ -58,7 +61,7 @@
 {% endif %}
 
 {% if joinee_notifications %}
-<section class="mb-8">
+<section class="mb-6">
     <div class="rounded-2xl border-2 border-floodlight-500/40 bg-floodlight-400/10 p-5">
         <h4 class="font-display font-bold text-sm text-ink-900 mb-3 tracking-wide uppercase">
             Updates on your requests ({{ joinee_notifications.count }})
@@ -68,7 +71,10 @@
                 <div class="flex items-center justify-between gap-3 rounded-xl border px-4 py-3 bg-white
                     {% if notif.status == 'ACCEPTED' %}border-pitch-600/25{% else %}border-rose-500/25{% endif %}">
                     <div class="min-w-0">
-                        <p class="font-semibold text-sm text-ink-900 truncate">{{ notif.match.turf.name }}</p>
+                        <p class="font-semibold text-sm text-ink-900 truncate">
+                            {{ notif.match.turf.name }}
+                            <span class="font-normal text-ink-500">— hosted by {{ notif.match.host.first_name|default:notif.match.host.username }}</span>
+                        </p>
                         <p class="text-xs text-ink-500 mt-0.5">{{ notif.match.match_time|date:"D, h:i A" }}
                             {% if notif.status == 'ACCEPTED' and notif.match.host.profile.phone %}
                                 &middot; <span class="scoreclock text-pitch-600">📞 {{ notif.match.host.profile.phone }}</span>
@@ -90,29 +96,64 @@
 </section>
 {% endif %}
 
+{# --- Day bubble filters + turf filter --------------------------------- #}
+<section class="mb-6 flex flex-wrap items-center gap-2">
+    <a href="?day=all{% if turf_filter %}&turf={{ turf_filter }}{% endif %}"
+       class="px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors
+        {% if day_filter == 'all' %} bg-pitch-900 text-chalk-50 border-pitch-900 {% else %} bg-white/70 text-ink-700 border-ink-900/15 hover:border-pitch-600/40 {% endif %}">
+        All
+    </a>
+    <a href="?day=today{% if turf_filter %}&turf={{ turf_filter }}{% endif %}"
+       class="px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors
+        {% if day_filter == 'today' %} bg-pitch-900 text-chalk-50 border-pitch-900 {% else %} bg-white/70 text-ink-700 border-ink-900/15 hover:border-pitch-600/40 {% endif %}">
+        Today
+    </a>
+    <a href="?day=tomorrow{% if turf_filter %}&turf={{ turf_filter }}{% endif %}"
+       class="px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors
+        {% if day_filter == 'tomorrow' %} bg-pitch-900 text-chalk-50 border-pitch-900 {% else %} bg-white/70 text-ink-700 border-ink-900/15 hover:border-pitch-600/40 {% endif %}">
+        Tomorrow
+    </a>
+
+    {% if show_turf_filter %}
+        <div class="ml-auto">
+            <form method="GET" class="flex items-center gap-2">
+                <input type="hidden" name="day" value="{{ day_filter }}">
+                <select name="turf" onchange="this.form.submit()"
+                        class="text-sm font-medium rounded-full border border-ink-900/15 bg-white/70 px-3.5 py-1.5 focus:border-pitch-600 focus:ring-2 focus:ring-pitch-600/20">
+                    <option value="">All turfs</option>
+                    {% for t in filter_turfs %}
+                        <option value="{{ t.id }}" {% if turf_filter == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+    {% endif %}
+</section>
+
 <section class="mb-10">
     <div class="flex items-center gap-2 mb-4">
         <span class="relative flex h-2.5 w-2.5">
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-floodlight-500 opacity-75"></span>
             <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-floodlight-500"></span>
         </span>
-        <h2 class="font-display font-bold text-lg text-ink-900">Urgent — playing now</h2>
+        <h2 class="font-display font-bold text-lg text-ink-900">Starting soon</h2>
     </div>
+    <p class="text-xs text-ink-500 -mt-3 mb-4">Kicking off within the next 4 hours — whether hosted as urgent or scheduled.</p>
 
     {% if urgent_matches %}
         <div class="grid gap-3">
             {% for match in urgent_matches %}
-                {% include 'core/_match_ticket.html' with match=match urgent=True %}
+                {% include 'core/_match_ticket.html' with match=match urgent=match.is_imminent %}
             {% endfor %}
         </div>
     {% else %}
         <div class="rounded-2xl border border-dashed border-ink-900/15 py-10 text-center">
-            <p class="text-ink-500 text-sm">No urgent requests right now. Be the first to call one.</p>
+            <p class="text-ink-500 text-sm">Nothing kicking off in the next few hours. Be the first to call one.</p>
         </div>
     {% endif %}
 </section>
 
-<section>
+<section class="mb-10">
     <div class="flex items-center gap-2 mb-4">
         <span class="h-2.5 w-2.5 rounded-full bg-pitch-600"></span>
         <h2 class="font-display font-bold text-lg text-ink-900">Scheduled games</h2>
@@ -121,7 +162,7 @@
     {% if scheduled_matches %}
         <div class="grid gap-3">
             {% for match in scheduled_matches %}
-                {% include 'core/_match_ticket.html' with match=match urgent=False %}
+                {% include 'core/_match_ticket.html' with match=match urgent=match.is_imminent %}
             {% endfor %}
         </div>
     {% else %}
@@ -130,5 +171,19 @@
         </div>
     {% endif %}
 </section>
+
+{% if recent_played %}
+<section>
+    <div class="flex items-center gap-2 mb-4">
+        <span class="h-2.5 w-2.5 rounded-full bg-ink-900/30"></span>
+        <h2 class="font-display font-bold text-lg text-ink-500">Recently played</h2>
+    </div>
+    <div class="grid gap-3 opacity-60">
+        {% for match in recent_played %}
+            {% include 'core/_match_ticket.html' with match=match urgent=match.is_urgent over=True %}
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
 
 {% endblock %}

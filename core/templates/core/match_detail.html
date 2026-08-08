@@ -1,4 +1,5 @@
 {% extends 'core/base.html' %}
+{% load core_extras %}
 {% block title %}{{ match.turf.name }} — SquadTurf{% endblock %}
 
 {% block content %}
@@ -13,17 +14,18 @@
                     <p class="text-sm text-ink-500 mt-0.5">📍 {{ match.turf.location_name }}</p>
                 </div>
                 <span class="shrink-0 text-xs font-bold px-2.5 py-1 rounded-md
-                    {% if match.status == 'OPEN' %} bg-pitch-600/10 text-pitch-700
+                    {% if is_past %} bg-ink-900/10 text-ink-500
+                    {% elif match.status == 'OPEN' %} bg-pitch-600/10 text-pitch-700
                     {% elif match.status == 'FILLED' %} bg-ink-900/10 text-ink-700
                     {% else %} bg-rose-500/10 text-rose-600 {% endif %}">
-                    {{ match.get_status_display }}
+                    {% if is_past %}OVER{% elif match.status == 'FILLED' %}FULL{% else %}{{ match.get_status_display }}{% endif %}
                 </span>
             </div>
 
             <div class="grid grid-cols-2 gap-3 bg-chalk-100 rounded-xl p-4 mb-4">
                 <div>
                     <span class="text-[10px] font-bold uppercase tracking-wide text-ink-500">Time</span>
-                    <p class="scoreclock text-sm font-bold text-ink-900 mt-0.5">{{ match.match_time|date:"D, d M · h:i A" }}</p>
+                    <p class="scoreclock text-sm font-bold text-ink-900 mt-0.5">{{ match.match_time|relative_day }}</p>
                 </div>
                 <div>
                     <span class="text-[10px] font-bold uppercase tracking-wide text-ink-500">Players needed</span>
@@ -55,6 +57,14 @@
                             <div class="flex items-center justify-between gap-3 rounded-xl border border-ink-900/10 bg-chalk-100 px-4 py-3">
                                 <div>
                                     <p class="font-semibold text-sm text-ink-900">{{ req.player.first_name|default:req.player.username }}</p>
+                                    <p class="text-xs mt-0.5">
+                                        {% if req.player.profile.average_rating %}
+                                            <span class="font-bold text-floodlight-500">★ {{ req.player.profile.average_rating }}</span>
+                                            <span class="text-ink-500">({{ req.player.profile.rating_count }} rating{{ req.player.profile.rating_count|pluralize }})</span>
+                                        {% else %}
+                                            <span class="text-ink-500">No ratings yet</span>
+                                        {% endif %}
+                                    </p>
                                     {% if req.status == 'ACCEPTED' and req.player.profile.phone %}
                                         <p class="scoreclock text-xs text-pitch-600 mt-0.5">📞 {{ req.player.profile.phone }}</p>
                                     {% endif %}
@@ -74,6 +84,14 @@
                     </div>
                 {% else %}
                     <p class="text-sm text-ink-500 italic">No requests yet — sit tight.</p>
+                {% endif %}
+
+                {% if not is_past and match.status != 'CANCELLED' %}
+                    <div class="mt-5 pt-4 border-t border-ink-900/10">
+                        <a href="{% url 'cancel_match' match.id %}"
+                           onclick="return confirm('Cancel this match? Everyone who joined will be notified.');"
+                           class="inline-flex text-sm font-semibold text-rose-600 hover:text-rose-700">Cancel this match</a>
+                    </div>
                 {% endif %}
 
             {% else %}
@@ -107,26 +125,45 @@
 
             {% if is_past and user.is_authenticated %}
                 <div class="mt-6 pt-5 border-t border-ink-900/10">
-                    <h4 class="font-display font-bold text-sm text-ink-900 mb-3">⭐ Post-match feedback</h4>
+                    <h4 class="font-display font-bold text-sm text-ink-900 mb-3">⭐ Rate this match</h4>
                     {% if existing_rating %}
-                        <p class="text-sm text-pitch-600 font-medium">You rated this match {{ existing_rating.stars }}★</p>
+                        <p class="text-sm text-pitch-600 font-medium">
+                            You said {{ existing_rating.rated_user.first_name|default:existing_rating.rated_user.username }}
+                            {% if existing_rating.showed_up %}showed up{% else %}didn't show up{% endif %}
+                            and rated them {{ existing_rating.stars }}★.
+                        </p>
                     {% else %}
-                        <form method="POST" action="{% url 'submit_rating' match.id %}" class="space-y-3">
+                        <form method="POST" action="{% url 'submit_rating' match.id %}" class="space-y-4" id="rating-form">
                             {% csrf_token %}
-                            <div class="flex items-center gap-3">
-                                <label for="stars" class="text-sm font-medium text-ink-700">Rating</label>
-                                <select name="stars" id="stars" class="rounded-lg border border-ink-900/15 px-2.5 py-1.5 text-sm">
-                                    <option value="5">5 stars</option>
-                                    <option value="4">4 stars</option>
-                                    <option value="3">3 stars</option>
-                                    <option value="2">2 stars</option>
-                                    <option value="1">1 star</option>
-                                </select>
+                            <div>
+                                <p class="text-xs font-bold uppercase tracking-wide text-ink-500 mb-2">Did they show up?</p>
+                                <div class="flex gap-2">
+                                    <label class="match-type-option flex-1">
+                                        <input type="radio" name="showed_up" value="on" checked class="peer sr-only">
+                                        <div class="peer-checked:border-pitch-600 peer-checked:bg-pitch-600/10 border-2 border-ink-900/10 rounded-xl px-3 py-2 cursor-pointer transition-colors text-center font-bold text-sm text-ink-900">
+                                            ✅ Showed up
+                                        </div>
+                                    </label>
+                                    <label class="match-type-option flex-1">
+                                        <input type="radio" name="showed_up" value="" class="peer sr-only">
+                                        <div class="peer-checked:border-rose-500 peer-checked:bg-rose-500/10 border-2 border-ink-900/10 rounded-xl px-3 py-2 cursor-pointer transition-colors text-center font-bold text-sm text-ink-900">
+                                            ❌ No-show
+                                        </div>
+                                    </label>
+                                </div>
                             </div>
-                            <label class="flex items-center gap-2 text-sm text-ink-700">
-                                <input type="checkbox" name="showed_up" checked class="rounded border-ink-900/30">
-                                Showed up on time
-                            </label>
+
+                            <div>
+                                <p class="text-xs font-bold uppercase tracking-wide text-ink-500 mb-2">Rate them</p>
+                                <input type="hidden" name="stars" id="stars-value" value="5">
+                                <div class="flex items-center gap-1" id="star-picker">
+                                    {% for i in "12345" %}
+                                        <button type="button" class="star-btn text-3xl leading-none text-floodlight-500" data-value="{{ forloop.counter }}">★</button>
+                                    {% endfor %}
+                                    <span id="star-label" class="ml-2 text-sm font-semibold text-ink-700">5 stars</span>
+                                </div>
+                            </div>
+
                             <button type="submit" class="text-sm font-semibold text-pitch-700 border border-pitch-600/30 hover:bg-pitch-600/5 px-4 py-2 rounded-lg transition-colors">Submit feedback</button>
                         </form>
                     {% endif %}
@@ -136,3 +173,34 @@
     </div>
 </div>
 {% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var picker = document.getElementById('star-picker');
+    if (!picker) return;
+    var buttons = picker.querySelectorAll('.star-btn');
+    var hiddenInput = document.getElementById('stars-value');
+    var label = document.getElementById('star-label');
+
+    function setStars(value) {
+      hiddenInput.value = value;
+      label.textContent = value + (value == 1 ? ' star' : ' stars');
+      buttons.forEach(function (btn) {
+        var filled = parseInt(btn.dataset.value, 10) <= value;
+        btn.classList.toggle('text-floodlight-500', filled);
+        btn.classList.toggle('text-ink-900/15', !filled);
+      });
+    }
+
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        setStars(parseInt(btn.dataset.value, 10));
+      });
+    });
+
+    setStars(5);
+  })();
+</script>
+{% endblock %}
+

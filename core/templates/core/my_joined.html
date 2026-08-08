@@ -1,28 +1,35 @@
 {% extends 'core/base.html' %}
+{% load core_extras %}
 {% block title %}My joined requests — SquadTurf{% endblock %}
 
 {% block content %}
 <div class="mb-6">
     <h1 class="font-display font-bold text-2xl text-ink-900">My join requests</h1>
-    <p class="text-ink-500 text-sm mt-1">Every match you've asked to join, and where things stand.</p>
+    <p class="text-ink-500 text-sm mt-1">Every match you've asked to join — including past ones, so you can always find a host's number again.</p>
 </div>
 
 {% if requests_data %}
     <div class="space-y-3">
         {% for item in requests_data %}
             <a href="{% url 'match_detail' item.req.match.id %}" class="block">
-                <article class="ticket {% if item.req.status == 'ACCEPTED' %}ticket-scheduled{% elif item.req.status == 'REJECTED' or item.req.status == 'CANCELLED' %}border-l-4 border-ink-900/20{% else %}ticket-urgent{% endif %} {% if item.is_past %}opacity-60{% endif %}">
+                <article class="ticket {% if item.is_past %}border-l-4 border-ink-900/20{% elif item.req.status == 'ACCEPTED' %}ticket-scheduled{% else %}ticket-urgent{% endif %} {% if item.is_past %}opacity-55{% endif %}">
                     <div class="p-4 sm:p-5 min-w-0">
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0">
                                 <h3 class="font-display font-bold text-base text-ink-900 truncate">{{ item.req.match.turf.name }}</h3>
-                                <p class="text-xs text-ink-500 mt-0.5">{{ item.req.match.match_time|date:"D, d M · h:i A" }} &middot; hosted by {{ item.req.match.host.first_name|default:item.req.match.host.username }}</p>
+                                <p class="text-xs text-ink-500 mt-0.5">
+                                    {{ item.req.match.match_time|relative_day }} &middot; hosted by {{ item.req.match.host.first_name|default:item.req.match.host.username }}
+                                    {% if item.req.status == 'ACCEPTED' and item.req.match.host.profile.phone %}
+                                        <span class="scoreclock text-pitch-600">· {{ item.req.match.host.profile.phone }}</span>
+                                    {% endif %}
+                                </p>
                             </div>
                             <span class="shrink-0 text-xs font-bold px-2.5 py-1 rounded-md
-                                {% if item.req.status == 'ACCEPTED' %} bg-pitch-600/10 text-pitch-700
+                                {% if item.is_past %} bg-ink-900/10 text-ink-500
+                                {% elif item.req.status == 'ACCEPTED' %} bg-pitch-600/10 text-pitch-700
                                 {% elif item.req.status == 'PENDING' %} bg-sky-500/10 text-sky-600
                                 {% else %} bg-rose-500/10 text-rose-600 {% endif %}">
-                                {{ item.req.get_status_display }}
+                                {% if item.is_past %}OVER{% else %}{{ item.req.get_status_display }}{% endif %}
                             </span>
                         </div>
                     </div>

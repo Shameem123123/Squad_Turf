@@ -109,7 +109,13 @@ input:focus, select:focus, textarea:focus {
   outline: none;
 }
 
-/* ---- Reduced motion ------------------------------------------------------ */
+/* ---- Pill-style radio options (match type / date choice) --------------- */
+
+.match-type-option {
+  display: block;
+  cursor: pointer;
+}
+
 
 @media (prefers-reduced-motion: reduce) {
   .ticket, .toast, .animate-ping {

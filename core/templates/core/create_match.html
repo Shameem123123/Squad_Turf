@@ -7,35 +7,60 @@
 
     <div class="mb-6">
         <h1 class="font-display font-bold text-2xl text-ink-900">Call players to your match</h1>
-        <p class="text-ink-500 text-sm mt-1">Post it once — it disappears from the feed automatically once it's full or the time passes.</p>
+        <p class="text-ink-500 text-sm mt-1">Takes under a minute. Everyone who's opted in gets notified the moment you post.</p>
     </div>
 
     <form method="POST" class="bg-white border border-ink-900/10 rounded-2xl p-6 shadow-sm space-y-5">
         {% csrf_token %}
 
         <div>
-            <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Turf</label>
+            <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Ground</label>
             {{ form.turf }}
         </div>
 
         <div>
-            <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Urgency</label>
-            {{ form.match_type }}
+            <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-2">When do you need players?</label>
+            <div class="grid grid-cols-2 gap-2">
+                <label class="match-type-option">
+                    <input type="radio" name="match_type" value="URGENT" class="peer sr-only" checked>
+                    <div class="peer-checked:border-floodlight-500 peer-checked:bg-floodlight-400/10 border-2 border-ink-900/10 rounded-xl px-4 py-3 cursor-pointer transition-colors text-center">
+                        <span class="block font-bold text-sm text-ink-900">⏱ Right now</span>
+                        <span class="block text-xs text-ink-500 mt-0.5">Playing today</span>
+                    </div>
+                </label>
+                <label class="match-type-option">
+                    <input type="radio" name="match_type" value="SCHEDULED" class="peer sr-only">
+                    <div class="peer-checked:border-pitch-600 peer-checked:bg-pitch-600/10 border-2 border-ink-900/10 rounded-xl px-4 py-3 cursor-pointer transition-colors text-center">
+                        <span class="block font-bold text-sm text-ink-900">📅 Plan ahead</span>
+                        <span class="block text-xs text-ink-500 mt-0.5">Today or tomorrow</span>
+                    </div>
+                </label>
+            </div>
         </div>
 
-        <div id="urgent_box">
-            <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Kicking off</label>
-            {{ form.emergency_time_offset }}
+        <div id="scheduled_date_box" class="hidden">
+            <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-2">Which day</label>
+            <div class="grid grid-cols-2 gap-2">
+                {% for radio in form.match_date_choice %}
+                    <label class="match-type-option">
+                        {{ radio.tag }}
+                        <div class="peer-checked:border-pitch-600 peer-checked:bg-pitch-600/10 border-2 border-ink-900/10 rounded-xl px-4 py-2.5 cursor-pointer transition-colors text-center font-bold text-sm text-ink-900">
+                            {{ radio.choice_label }}
+                        </div>
+                    </label>
+                {% endfor %}
+            </div>
         </div>
 
-        <div id="scheduled_box" class="hidden">
-            <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Date &amp; time</label>
-            {{ form.match_time_scheduled }}
+        <div>
+            <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Kickoff time</label>
+            {{ form.match_time_slot }}
+            <p class="text-xs text-ink-500 mt-1.5" id="time_helper">Pick the exact time — half-hour slots, so it's easy to scan.</p>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
             <div>
-                <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Cost sharing</label>
+                <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Who pays</label>
                 {{ form.cost_model }}
             </div>
             <div>
@@ -45,7 +70,7 @@
         </div>
 
         <div id="per_head_box">
-            <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Per-head amount (₹)</label>
+            <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Amount per player (₹)</label>
             {{ form.per_head_amount }}
         </div>
 
@@ -63,18 +88,22 @@
 
 {% block extra_js %}
 <script>
-  function toggleTimeInputs() {
-    var type = document.getElementById('id_match_type').value;
-    document.getElementById('urgent_box').classList.toggle('hidden', type !== 'URGENT');
-    document.getElementById('scheduled_box').classList.toggle('hidden', type !== 'SCHEDULED');
+  function toggleDateBox() {
+    var type = document.querySelector('input[name="match_type"]:checked').value;
+    document.getElementById('scheduled_date_box').classList.toggle('hidden', type !== 'SCHEDULED');
+    document.getElementById('time_helper').textContent = type === 'URGENT'
+      ? "Pick the exact time you're kicking off today — half-hour slots."
+      : "Pick the exact kickoff time for the day you chose above.";
   }
   function toggleCostInput() {
     var model = document.getElementById('id_cost_model').value;
     document.getElementById('per_head_box').classList.toggle('hidden', model !== 'SPLIT');
   }
-  document.getElementById('id_match_type').addEventListener('change', toggleTimeInputs);
+  document.querySelectorAll('input[name="match_type"]').forEach(function (el) {
+    el.addEventListener('change', toggleDateBox);
+  });
   document.getElementById('id_cost_model').addEventListener('change', toggleCostInput);
-  toggleTimeInputs();
+  toggleDateBox();
   toggleCostInput();
 </script>
 {% endblock %}

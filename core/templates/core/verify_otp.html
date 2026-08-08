@@ -1,0 +1,32 @@
+{% extends 'core/base.html' %}
+{% block title %}Verify your number — SquadTurf{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto mt-4 sm:mt-10">
+    <div class="text-center mb-6">
+        <span class="inline-flex h-10 w-10 rounded-full bg-pitch-900 items-center justify-center mb-3">
+            <span class="h-2.5 w-2.5 rounded-full bg-floodlight-400"></span>
+        </span>
+        <h1 class="font-display font-bold text-2xl text-ink-900">Enter your code</h1>
+        <p class="text-ink-500 text-sm mt-1">We sent a 6-digit code to {{ masked_phone }}.</p>
+    </div>
+
+    <form method="POST" class="bg-white border border-ink-900/10 rounded-2xl p-6 shadow-sm space-y-4">
+        {% csrf_token %}
+        <div>
+            <label for="{{ form.code.id_for_label }}" class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5 text-center">Verification code</label>
+            {{ form.code }}
+            {% for error in form.code.errors %}<p class="text-xs text-rose-600 mt-1 text-center">{{ error }}</p>{% endfor %}
+        </div>
+
+        <button type="submit" class="w-full bg-pitch-900 hover:bg-pitch-700 text-chalk-50 font-bold text-sm py-3 rounded-xl transition-colors">
+            Verify &amp; continue
+        </button>
+
+        <p class="text-center text-sm text-ink-500 pt-1">
+            Didn't get it?
+            <a href="{% url 'resend_otp' %}" class="font-semibold text-pitch-700 hover:underline">Resend code</a>
+        </p>
+    </form>
+</div>
+{% endblock %}

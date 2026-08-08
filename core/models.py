@@ -44,6 +44,18 @@ class Profile(models.Model):
         avg = Rating.objects.filter(rated_user=self.user).aggregate(Avg('stars'))['stars__avg']
         return round(avg, 1) if avg is not None else None
 
+    def rating_count(self):
+        return Rating.objects.filter(rated_user=self.user).count()
+
+    def reliability_pct(self):
+        """% of rated appearances where the user actually showed up."""
+        qs = Rating.objects.filter(rated_user=self.user)
+        total = qs.count()
+        if not total:
+            return None
+        showed = qs.filter(showed_up=True).count()
+        return round(showed / total * 100)
+
     def initials(self):
         name = self.display_name.strip()
         parts = [p for p in name.split(' ') if p]
@@ -85,6 +97,7 @@ class Match(models.Model):
     match_time = models.DateTimeField()
     note = models.CharField(max_length=255, blank=True)
     status = models.CharField(max_length=15, choices=Status.choices, default=Status.OPEN)
+    reminder_sent = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -155,3 +168,102 @@ class Rating(models.Model):
 
     def __str__(self):
         return f"{self.rater.username} rated {self.rated_user.username}: {self.stars}★"
+
+
+class Notification(models.Model):
+    """An in-app + push notification delivered to a single user."""
+
+    class Verb(models.TextChoices):
+        JOIN_REQUEST = 'JOIN_REQUEST', 'New join request'
+        REQUEST_ACCEPTED = 'REQUEST_ACCEPTED', 'Request accepted'
+        REQUEST_DECLINED = 'REQUEST_DECLINED', 'Request declined'
+        PLAYER_LEFT = 'PLAYER_LEFT', 'Player stepped down'
+        MATCH_CANCELLED = 'MATCH_CANCELLED', 'Match cancelled'
+        MATCH_FILLED = 'MATCH_FILLED', 'Match filled'
+        REMINDER = 'REMINDER', 'Pre-match reminder'
+        NEW_MATCH = 'NEW_MATCH', 'New match posted'
+
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications'
+    )
+    verb = models.CharField(max_length=20, choices=Verb.choices)
+    message = models.CharField(max_length=255)
+    match = models.ForeignKey(
+        Match, on_delete=models.CASCADE, related_name='notifications', null=True, blank=True
+    )
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"To {self.recipient.username}: {self.message}"
+
+
+class PushSubscription(models.Model):
+    """A browser's Web Push subscription for a user, used to deliver
+    notifications even when SquadTurf isn't open in a tab."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='push_subscriptions'
+    )
+    endpoint = models.URLField(max_length=500, unique=True)
+    p256dh = models.CharField(max_length=255)
+    auth = models.CharField(max_length=255)
+    user_agent = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Push subscription for {self.user.username}"
+
+
+class SiteSettings(models.Model):
+    """A single-row table of site-wide toggles, editable from /admin/."""
+
+    otp_required = models.BooleanField(
+        default=True,
+        help_text="If off, signup/login skip OTP verification entirely — "
+                   "handy for testing multiple accounts quickly.",
+    )
+
+    class Meta:
+        verbose_name = "Site settings"
+        verbose_name_plural = "Site settings"
+
+    def __str__(self):
+        return "Site settings"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1  # enforce singleton
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
+class OTP(models.Model):
+    """A short-lived one-time code sent to a phone number for signup or
+    login. The code itself is never stored in plain text."""
+
+    class Purpose(models.TextChoices):
+        SIGNUP = 'SIGNUP', 'Signup'
+        LOGIN = 'LOGIN', 'Login'
+
+    phone = models.CharField(max_length=15, db_index=True)
+    purpose = models.CharField(max_length=10, choices=Purpose.choices)
+    code_hash = models.CharField(max_length=128)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    is_used = models.BooleanField(default=False)
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"OTP for {self.phone} ({self.purpose})"
+
+

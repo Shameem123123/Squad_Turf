@@ -31,6 +31,7 @@
 <link rel="stylesheet" href="{% static 'core/css/custom.css' %}">
 </head>
 <body class="font-body bg-chalk-100 text-ink-900 min-h-screen flex flex-col">
+{% csrf_token %}{# ensures the csrftoken cookie exists for push.js's fetch calls #}
 
 <nav class="sticky top-0 z-50 bg-pitch-900 border-b-2 border-floodlight-400/70">
     <div class="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
@@ -44,18 +45,27 @@
 
         <div class="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
             {% if user.is_authenticated %}
+                <a href="{% url 'turf_directory' %}" class="hidden md:inline-flex items-center gap-1.5 text-sm font-semibold text-chalk-100/90 hover:text-floodlight-400 transition-colors">
+                    Turfs
+                </a>
                 <a href="{% url 'my_hosted' %}" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-chalk-100/90 hover:text-floodlight-400 transition-colors">
                     Hosted
                 </a>
                 <a href="{% url 'my_joined' %}" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-chalk-100/90 hover:text-floodlight-400 transition-colors">
                     Joined
                 </a>
+                <a href="{% url 'notification_list' %}" class="relative inline-flex items-center justify-center h-9 w-9 rounded-lg hover:bg-white/10 transition-colors" aria-label="Notifications">
+                    <span class="text-lg">🔔</span>
+                    {% if unread_notification_count %}
+                        <span class="absolute -top-0.5 -right-0.5 flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold">{{ unread_notification_count }}</span>
+                    {% endif %}
+                </a>
                 <a href="{% url 'create_match' %}" class="inline-flex items-center gap-1.5 bg-floodlight-400 hover:bg-floodlight-500 text-pitch-950 font-bold text-sm px-3.5 py-2 rounded-lg transition-colors shadow-sm">
                     + Host Match
                 </a>
-                <div class="hidden md:flex items-center gap-2 pl-2 border-l border-white/15">
+                <a href="{% url 'profile' %}" class="hidden md:flex items-center gap-2 pl-2 border-l border-white/15">
                     <span class="flex items-center justify-center h-8 w-8 rounded-full bg-pitch-600 text-chalk-50 font-display font-bold text-xs">{{ user.profile.initials }}</span>
-                </div>
+                </a>
                 <a href="{% url 'logout' %}" class="text-sm font-medium text-chalk-100/60 hover:text-rose-500 transition-colors">Log out</a>
             {% else %}
                 <a href="{% url 'login' %}" class="text-sm font-semibold text-chalk-100/90 hover:text-floodlight-400 transition-colors">Log in</a>
@@ -67,11 +77,25 @@
     </div>
     {% if user.is_authenticated %}
     <div class="sm:hidden flex items-center gap-4 px-4 pb-2.5 -mt-1">
+        <a href="{% url 'turf_directory' %}" class="text-xs font-semibold text-chalk-100/80">Turfs</a>
         <a href="{% url 'my_hosted' %}" class="text-xs font-semibold text-chalk-100/80">Hosted</a>
         <a href="{% url 'my_joined' %}" class="text-xs font-semibold text-chalk-100/80">Joined</a>
+        <a href="{% url 'profile' %}" class="text-xs font-semibold text-chalk-100/80">Profile</a>
     </div>
     {% endif %}
 </nav>
+
+{% if user.is_authenticated %}
+<div id="push-banner" class="hidden bg-floodlight-400/15 border-b border-floodlight-400/40">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3">
+        <p class="text-xs sm:text-sm font-medium text-ink-900">🔔 Turn on notifications so you don't miss a join request — even when SquadTurf isn't open.</p>
+        <div class="flex items-center gap-3 shrink-0">
+            <button id="push-enable-btn" class="text-xs sm:text-sm font-bold text-pitch-700 hover:underline">Enable</button>
+            <button id="push-dismiss-btn" class="text-xs sm:text-sm text-ink-500 hover:text-ink-900">Not now</button>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <main class="flex-1 w-full">
     <div class="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
@@ -98,6 +122,39 @@
 </footer>
 
 <script src="{% static 'core/js/app.js' %}"></script>
+{% if user.is_authenticated %}
+<script src="{% static 'core/js/push.js' %}"></script>
+<script>
+  (function () {
+    var banner = document.getElementById('push-banner');
+    var enableBtn = document.getElementById('push-enable-btn');
+    var dismissBtn = document.getElementById('push-dismiss-btn');
+    if (!banner) return;
+
+    var dismissed = sessionStorage.getItem('squadturf_push_dismissed');
+    var supported = 'serviceWorker' in navigator && 'PushManager' in window;
+    var alreadyAsked = window.Notification && Notification.permission !== 'default';
+
+    if (supported && !dismissed && !alreadyAsked) {
+      banner.classList.remove('hidden');
+    }
+
+    if (enableBtn) {
+      enableBtn.addEventListener('click', function () {
+        window.SquadTurfPush.subscribe().then(function (result) {
+          banner.classList.add('hidden');
+        });
+      });
+    }
+    if (dismissBtn) {
+      dismissBtn.addEventListener('click', function () {
+        sessionStorage.setItem('squadturf_push_dismissed', '1');
+        banner.classList.add('hidden');
+      });
+    }
+  })();
+</script>
+{% endif %}
 {% block extra_js %}{% endblock %}
 </body>
 </html>

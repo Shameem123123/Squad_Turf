@@ -1,0 +1,73 @@
+{% extends 'core/base.html' %}
+{% block title %}My profile — SquadTurf{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto">
+    <div class="flex items-center gap-4 mb-6">
+        <span class="flex items-center justify-center h-14 w-14 rounded-full bg-pitch-900 text-chalk-50 font-display font-bold text-lg">{{ profile.initials }}</span>
+        <div>
+            <h1 class="font-display font-bold text-2xl text-ink-900">{{ profile.display_name }}</h1>
+            <p class="text-sm text-ink-500">{{ profile.phone }}</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-3 gap-3 mb-6">
+        <div class="bg-white border border-ink-900/10 rounded-xl p-4 text-center">
+            <p class="scoreclock text-xl font-bold text-ink-900">{{ stats.hosted_count }}</p>
+            <p class="text-[10px] font-bold uppercase tracking-wide text-ink-500 mt-1">Hosted</p>
+        </div>
+        <div class="bg-white border border-ink-900/10 rounded-xl p-4 text-center">
+            <p class="scoreclock text-xl font-bold text-ink-900">{{ stats.joined_count }}</p>
+            <p class="text-[10px] font-bold uppercase tracking-wide text-ink-500 mt-1">Played</p>
+        </div>
+        <div class="bg-white border border-ink-900/10 rounded-xl p-4 text-center">
+            <p class="scoreclock text-xl font-bold text-ink-900">{% if stats.average_rating %}{{ stats.average_rating }}★{% else %}—{% endif %}</p>
+            <p class="text-[10px] font-bold uppercase tracking-wide text-ink-500 mt-1">{{ stats.rating_count }} rating{{ stats.rating_count|pluralize }}</p>
+        </div>
+    </div>
+
+    {% if stats.reliability_pct is not None %}
+    <div class="bg-pitch-600/5 border border-pitch-600/20 rounded-xl p-4 mb-6">
+        <p class="text-sm text-ink-700"><span class="font-bold text-pitch-700">{{ stats.reliability_pct }}%</span> of players who rated you said you showed up as planned.</p>
+    </div>
+    {% endif %}
+
+    <div class="bg-white border border-ink-900/10 rounded-xl p-4 mb-6 flex items-center justify-between gap-3">
+        <div>
+            <p class="text-sm font-semibold text-ink-900">Push notifications</p>
+            <p class="text-xs text-ink-500 mt-0.5">{% if stats.push_enabled %}Enabled on this device.{% else %}Not enabled on this device yet.{% endif %}</p>
+        </div>
+        {% if not stats.push_enabled %}
+            <button id="profile-push-enable" class="text-xs font-bold text-pitch-700 border border-pitch-600/30 hover:bg-pitch-600/5 px-3 py-1.5 rounded-lg transition-colors">Enable</button>
+        {% else %}
+            <span class="text-xs font-bold text-pitch-600">✓ On</span>
+        {% endif %}
+    </div>
+
+    <form method="POST" class="bg-white border border-ink-900/10 rounded-2xl p-6 shadow-sm space-y-4">
+        {% csrf_token %}
+        <div>
+            <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Full name</label>
+            {{ form.name }}
+        </div>
+        <label class="flex items-center gap-2 text-sm text-ink-700">
+            {{ form.is_available_for_alerts }}
+            {{ form.is_available_for_alerts.label }}
+        </label>
+        <button type="submit" class="w-full bg-pitch-900 hover:bg-pitch-700 text-chalk-50 font-bold text-sm py-3 rounded-xl transition-colors">
+            Save changes
+        </button>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  var btn = document.getElementById('profile-push-enable');
+  if (btn) {
+    btn.addEventListener('click', function () {
+      window.SquadTurfPush.subscribe().then(function () { window.location.reload(); });
+    });
+  }
+</script>
+{% endblock %}
