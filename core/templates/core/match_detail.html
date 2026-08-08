@@ -99,17 +99,15 @@
                     <div class="text-center py-2">
                         {% if user_request.status == 'PENDING' %}
                             <p class="font-semibold text-sky-600 mb-3">⏳ Your request is pending host approval.</p>
-                            <a href="{% url 'cancel_join_request' match.id %}" class="inline-flex text-sm font-semibold text-ink-500 hover:text-rose-600 border border-ink-900/15 hover:border-rose-500/40 px-4 py-2 rounded-lg transition-colors">Withdraw request</a>
+                            <a href="{% url 'cancel_join_request' match.id %}" id="step-down-btn" class="inline-flex text-sm font-semibold text-ink-500 hover:text-rose-600 border border-ink-900/15 hover:border-rose-500/40 px-4 py-2 rounded-lg transition-colors">
+                                Withdraw request <span id="step-down-countdown" class="ml-1 scoreclock"></span>
+                            </a>
                         {% elif user_request.status == 'ACCEPTED' %}
                             <p class="font-semibold text-pitch-600 mb-2">🎉 You're in! The host accepted your request.</p>
                             {% if match.host.profile.phone %}
                                 <p class="text-sm text-ink-500 mb-3">Host contact: <span class="scoreclock font-bold text-pitch-600">📞 {{ match.host.profile.phone }}</span></p>
                             {% endif %}
-                            {% if not is_past %}
-                                <a href="{% url 'leave_match' match.id %}" id="step-down-btn" class="inline-flex text-sm font-semibold text-rose-600 border border-rose-500/30 hover:bg-rose-500/5 px-4 py-2 rounded-lg transition-colors">
-                                    Step down <span id="step-down-countdown" class="ml-1 scoreclock"></span>
-                                </a>
-                            {% endif %}
+                            <p class="text-xs text-ink-500 italic">Once a host accepts you, you're locked in — stepping down isn't possible from here. Contact the host directly if something's come up.</p>
                         {% elif user_request.status == 'REJECTED' %}
                             <p class="font-semibold text-rose-600">❌ The host declined this request.</p>
                         {% elif user_request.status == 'CANCELLED' %}
@@ -178,8 +176,9 @@
 
 {% block extra_js %}
 <script>
-  // Step-down button self-destructs after 20s so it can't sit around and be
-  // misused as an easy "leave anytime, no cost" escape hatch.
+  // Withdraw-request button self-destructs after 20s — the window to back
+  // out of a pending request is short and deliberate. There's no equivalent
+  // once a host has accepted; at that point stepping down isn't offered.
   (function () {
     var btn = document.getElementById('step-down-btn');
     var countdownEl = document.getElementById('step-down-countdown');

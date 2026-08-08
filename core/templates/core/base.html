@@ -45,7 +45,7 @@
                 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-floodlight-400 opacity-75"></span>
                 <span class="relative inline-flex rounded-full h-3 w-3 bg-floodlight-400"></span>
             </span>
-            <span class="font-display font-bold text-lg text-chalk-50 tracking-tight hidden sm:inline">SquadTurf</span>
+            <span class="font-display font-bold text-base sm:text-lg text-chalk-50 tracking-tight inline">SquadTurf</span>
         </a>
 
         <div class="flex items-center gap-1 sm:gap-2 justify-end">
@@ -78,7 +78,6 @@
                     <div id="profile-menu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-ink-900/10 py-1.5 z-50">
                         <p class="px-3.5 py-2 text-xs font-semibold text-ink-500 truncate border-b border-ink-900/10">{{ user.profile.display_name }}</p>
                         <a href="{% url 'profile' %}" class="block px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">Profile</a>
-                        <a href="{% url 'create_match' %}" class="sm:hidden block px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">+ Host a match</a>
                         <a href="{% url 'logout' %}" class="block px-3.5 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-500/5">Log out</a>
                     </div>
                 </div>
@@ -91,6 +90,7 @@
                     </button>
                     <div id="more-menu" class="hidden absolute right-0 mt-2 w-44 bg-white rounded-xl shadow-lg border border-ink-900/10 py-1.5 z-50">
                         <a href="{% url 'turf_directory' %}" class="block px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">Turfs</a>
+                        <a href="{% url 'create_match' %}" class="sm:hidden block px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">+ Host a match</a>
                         <a href="{% url 'notification_list' %}" class="block px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">Notifications</a>
                     </div>
                 </div>
@@ -104,13 +104,12 @@
     </div>
 </nav>
 
-{% if user.is_authenticated %}
-<div id="push-banner" class="hidden bg-floodlight-400/15 border-b border-floodlight-400/40">
+{% if user.is_authenticated and not has_push_subscription %}
+<div id="push-banner" class="bg-floodlight-400/15 border-b border-floodlight-400/40">
     <div class="max-w-5xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3">
         <p class="text-xs sm:text-sm font-medium text-ink-900">🔔 Turn on notifications so you don't miss a join request — even when SquadTurf isn't open.</p>
         <div class="flex items-center gap-3 shrink-0">
             <button id="push-enable-btn" class="text-xs sm:text-sm font-bold text-pitch-700 hover:underline">Enable</button>
-            <button id="push-dismiss-btn" class="text-xs sm:text-sm text-ink-500 hover:text-ink-900">Not now</button>
         </div>
     </div>
 </div>
@@ -178,17 +177,18 @@
 <script src="{% static 'core/js/push.js' %}"></script>
 <script>
   (function () {
+    // This banner has no dismiss/reject option on purpose — SquadTurf's
+    // join-request flow depends on notifications reaching everyone, so it
+    // stays put until the person actually enables push (or their browser
+    // can't support it at all).
     var banner = document.getElementById('push-banner');
     var enableBtn = document.getElementById('push-enable-btn');
-    var dismissBtn = document.getElementById('push-dismiss-btn');
     if (!banner) return;
 
-    var dismissed = sessionStorage.getItem('squadturf_push_dismissed');
     var supported = 'serviceWorker' in navigator && 'PushManager' in window;
-    var alreadyAsked = window.Notification && Notification.permission !== 'default';
-
-    if (supported && !dismissed && !alreadyAsked) {
-      banner.classList.remove('hidden');
+    if (!supported) {
+      banner.classList.add('hidden');
+      return;
     }
 
     if (enableBtn) {
@@ -204,12 +204,6 @@
             alert(window.SquadTurfPush.messageFor(result.reason));
           }
         });
-      });
-    }
-    if (dismissBtn) {
-      dismissBtn.addEventListener('click', function () {
-        sessionStorage.setItem('squadturf_push_dismissed', '1');
-        banner.classList.add('hidden');
       });
     }
   })();

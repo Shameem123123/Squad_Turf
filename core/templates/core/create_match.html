@@ -145,6 +145,34 @@
     timeSelect.value = current;
   }
 
+  function restoreFutureOptionsToday() {
+    // "Plan ahead" + "Today": no one can play right now or in the past, so
+    // only show slots strictly after the current time.
+    var nowMin = nowMinutes();
+    var current = timeSelect.value;
+    timeSelect.innerHTML = '';
+    var kept = false;
+    allTimeOptions.forEach(function (opt) {
+      if (slotMinutes(opt.value) > nowMin) {
+        var el = document.createElement('option');
+        el.value = opt.value;
+        el.textContent = opt.label;
+        if (opt.value === current) kept = true;
+        timeSelect.appendChild(el);
+      }
+    });
+    if (!timeSelect.options.length) {
+      // Past midnight with nothing left today — fall back to the full list
+      // rather than leaving the select empty; the day should really be
+      // switched to Tomorrow at this point.
+      restoreAllOptions();
+      return;
+    }
+    if (!kept) {
+      timeSelect.value = timeSelect.options[0].value;
+    }
+  }
+
   function checkCollision() {
     var type = document.querySelector('input[name="match_type"]:checked').value;
     var note = document.getElementById('urgent_collision_note');
@@ -167,8 +195,10 @@
 
     if (type === 'URGENT') {
       rebuildUrgentOptions();
-    } else {
+    } else if (isTomorrowChosen()) {
       restoreAllOptions();
+    } else {
+      restoreFutureOptionsToday();
     }
     checkCollision();
   }
@@ -180,7 +210,7 @@
     el.addEventListener('change', toggleDateBox);
   });
   document.querySelectorAll('input[name="match_date_choice"]').forEach(function (el) {
-    el.addEventListener('change', checkCollision);
+    el.addEventListener('change', toggleDateBox);
   });
   timeSelect.addEventListener('change', checkCollision);
   document.getElementById('id_cost_model').addEventListener('change', toggleCostInput);

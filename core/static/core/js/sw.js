@@ -29,6 +29,11 @@ self.addEventListener('push', function (event) {
     data: { url: data.url || '/' },
     tag: 'squadturf-notification',
     renotify: true,
+    // The Notification API has no "sound" field — the OS/browser plays its
+    // own default notification sound automatically as long as we don't
+    // silence it. `vibrate` covers the phone-in-your-pocket case.
+    silent: false,
+    vibrate: [200, 100, 200, 100, 200],
   };
 
   event.waitUntil(self.registration.showNotification(data.title || 'SquadTurf', options));

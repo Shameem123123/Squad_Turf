@@ -327,10 +327,19 @@ def create_match(request):
 
             urgent_cutoff = now + URGENT_MAX_WINDOW
 
+            # No one can play "now" or in the past — if today was chosen (or
+            # implied, for urgent matches), the kickoff must be strictly
+            # after the current moment. This applies regardless of whether
+            # the host picked "Right now" or "Plan ahead" -> "Today".
+            if chosen_date == local_today and match.match_time <= now:
+                form.add_error(
+                    None,
+                    "That time is already here or has passed — pick an upcoming slot, "
+                    "or choose Tomorrow."
+                )
+                return render(request, 'core/create_match.html', {'form': form})
+
             if match.match_type == Match.MatchType.URGENT:
-                if match.match_time < now:
-                    form.add_error(None, "That time has already passed — pick a later slot.")
-                    return render(request, 'core/create_match.html', {'form': form})
                 if match.match_time > urgent_cutoff:
                     form.add_error(
                         None,
