@@ -4,7 +4,19 @@
 
 {# ---- Mobile-only kickoff intro: plays once per browser session on landing ---- #}
 <div id="kickoff-intro" class="sm:hidden">
-    <span class="kickoff-ball"><span>⚽</span></span>
+    <div class="kickoff-flash"></div>
+    <div class="kickoff-shake"></div>
+    <span class="kickoff-ball">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="11" fill="#FBFAF6" stroke="#0B1F17" stroke-width="0.6"/>
+            <polygon points="12,6.2 15.6,8.8 14.2,13 9.8,13 8.4,8.8" fill="#0B1F17"/>
+            <path d="M12 6.2 8.4 8.8 6 7.2 8.8 3.6z" fill="#0B1F17"/>
+            <path d="M12 6.2 15.6 8.8 18 7.2 15.2 3.6z" fill="#0B1F17"/>
+            <path d="M8.4 8.8 9.8 13 6.6 15.4 4.6 12z" fill="#0B1F17"/>
+            <path d="M15.6 8.8 14.2 13 17.4 15.4 19.4 12z" fill="#0B1F17"/>
+            <path d="M9.8 13 14.2 13 15.6 16.8 12 19.2 8.4 16.8z" fill="#0B1F17"/>
+        </svg>
+    </span>
     <span class="kickoff-text">KICK OFF!</span>
 </div>
 <script>
@@ -16,11 +28,11 @@
       return;
     }
     sessionStorage.setItem('squadturf-kickoff-seen', '1');
-    if (window.SquadTurfPush) window.SquadTurfPush.playWhistle();
+    if (window.SquadTurfPush) window.SquadTurfPush.playWhistle('KICKOFF');
     setTimeout(function () {
       var el = document.getElementById('kickoff-intro');
       if (el) el.remove();
-    }, 1800);
+    }, 1450);
   });
 </script>
 

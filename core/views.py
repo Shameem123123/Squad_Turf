@@ -786,9 +786,11 @@ def live_status(request):
         Q(match__host=request.user) | Q(player=request.user)
     ).order_by('-id').values_list('id', flat=True).first() or 0
     unread = Notification.objects.filter(recipient=request.user, is_read=False).count()
+    latest_verb = Notification.objects.filter(recipient=request.user) \
+        .order_by('-id').values_list('verb', flat=True).first()
 
     sig = f"{latest_match_id}-{latest_notif_id}-{latest_join_id}"
-    return JsonResponse({'sig': sig, 'unread': unread})
+    return JsonResponse({'sig': sig, 'unread': unread, 'latest_verb': latest_verb})
 
 
 def vapid_public_key(request):

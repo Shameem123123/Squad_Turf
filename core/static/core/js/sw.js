@@ -45,7 +45,7 @@ self.addEventListener('push', function (event) {
       // play the whistle themselves instead of relying on the system.
       self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
         clientList.forEach(function (client) {
-          client.postMessage({ type: 'squadturf-push', title: data.title, body: data.body, url: data.url });
+          client.postMessage({ type: 'squadturf-push', title: data.title, body: data.body, url: data.url, verb: data.verb });
         });
       }),
     ])

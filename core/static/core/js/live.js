@@ -14,13 +14,13 @@
   var inFlight = false;
   var lastUnread = null;
 
-  function updateBadge(count) {
+  function updateBadge(count, latestVerb) {
     var badge = document.getElementById('notif-badge');
     // A fresh, higher unread count means something new landed while this
     // tab was open — give it the same whistle sound a push notification
     // would get, instead of a silent badge nobody notices.
     if (lastUnread !== null && count > lastUnread && window.SquadTurfPush) {
-      window.SquadTurfPush.playWhistle();
+      window.SquadTurfPush.playWhistle(latestVerb);
     }
     lastUnread = count;
     [badge, document.getElementById('notif-badge-mobile')].forEach(function (el) {
@@ -55,7 +55,7 @@
     fetch('/api/live/', { credentials: 'same-origin' })
       .then(function (resp) { return resp.json(); })
       .then(function (data) {
-        updateBadge(data.unread || 0);
+        updateBadge(data.unread || 0, data.latest_verb);
         if (data.sig && data.sig !== lastSig) {
           lastSig = data.sig;
           softReload();

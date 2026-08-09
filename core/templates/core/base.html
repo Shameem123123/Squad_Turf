@@ -39,18 +39,43 @@
 {% csrf_token %}{# ensures the csrftoken cookie exists for push.js's / live.js's fetch calls #}
 
 <nav class="sticky top-0 z-50 bg-pitch-900 border-b-2 border-floodlight-400/70">
-    <div class="max-w-5xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3">
+    <div class="max-w-5xl mx-auto px-3 sm:px-6 py-[13px] sm:py-3 flex items-center justify-between gap-2 sm:gap-3">
         <a href="{% url 'feed' %}" class="flex items-center gap-2 group shrink-0">
-            {# ---- Ball logo: a constant slow "scanning" sweep behind it, never stops ---- #}
-            <span class="relative flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center shrink-0">
+            {# ---- Desktop ball logo: unchanged, constant slow "scanning" sweep behind it ---- #}
+            <span class="hidden sm:flex relative h-7 w-7 sm:h-8 sm:w-8 items-center justify-center shrink-0">
                 <span class="logo-scan-ring absolute inline-flex h-full w-full rounded-full"></span>
                 <span class="logo-ball relative text-lg sm:text-xl leading-none">⚽</span>
+            </span>
+            {# ---- Mobile-only logo mark: scan/radar design, no emoji, constant sweep ---- #}
+            <span class="flex sm:hidden relative h-7 w-7 items-center justify-center shrink-0">
+                <span class="logo-scan-mobile-ring absolute inline-flex h-full w-full rounded-full"></span>
+                <svg class="logo-scan-mobile relative h-4 w-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="8.5" stroke="#FFD23F" stroke-width="1.6"/>
+                    <circle cx="12" cy="12" r="2.6" fill="#FFD23F"/>
+                    <line x1="12" y1="1.2" x2="12" y2="4.6" stroke="#FFD23F" stroke-width="1.6" stroke-linecap="round"/>
+                    <line x1="12" y1="19.4" x2="12" y2="22.8" stroke="#FFD23F" stroke-width="1.6" stroke-linecap="round"/>
+                    <line x1="1.2" y1="12" x2="4.6" y2="12" stroke="#FFD23F" stroke-width="1.6" stroke-linecap="round"/>
+                    <line x1="19.4" y1="12" x2="22.8" y2="12" stroke="#FFD23F" stroke-width="1.6" stroke-linecap="round"/>
+                </svg>
             </span>
             <span class="font-display font-bold text-base sm:text-lg text-chalk-50 tracking-tight inline">SquadTurf</span>
         </a>
 
         <div class="flex items-center gap-1 sm:gap-2 justify-end">
             {% if user.is_authenticated %}
+                {# ---- Mobile-only header icons: notification bell (right) + profile/menu (rightmost) ---- #}
+                <a href="{% url 'notification_list' %}" class="sm:hidden relative flex items-center justify-center h-9 w-9 rounded-lg text-chalk-50 hover:bg-white/10 active:scale-95 transition-all" aria-label="Notifications">
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                    </svg>
+                    <span id="notif-badge-mobile" class="absolute -top-0.5 -right-0.5 flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold {% if not unread_notification_count %}hidden{% endif %}">{{ unread_notification_count }}</span>
+                </a>
+                <button id="mobile-header-menu-btn" type="button" aria-haspopup="true" aria-expanded="false"
+                        class="sm:hidden flex items-center justify-center h-9 w-9 rounded-full bg-pitch-600 text-chalk-50 font-display font-bold text-xs active:scale-95 transition-transform" aria-label="Menu">
+                    {{ user.profile.initials }}
+                </button>
+
                 {# ---- Desktop-only text links; mobile gets these as bottom tabs instead ---- #}
                 <a href="{% url 'feed' %}" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-chalk-100/90 hover:text-floodlight-400 transition-colors px-2">
                     Home
@@ -101,26 +126,55 @@
 <nav id="mobile-tab-bar" class="sm:hidden fixed bottom-0 inset-x-0 z-50 bg-pitch-900 border-t-2 border-floodlight-400/70 pb-[env(safe-area-inset-bottom)]">
     <div class="grid grid-cols-4">
         <a href="{% url 'feed' %}" class="tab-item flex flex-col items-center justify-center gap-0.5 py-2.5 {% if request.resolver_match.url_name == 'feed' %}tab-active{% endif %}">
-            <span class="text-lg leading-none">🏠</span>
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 11.5 12 4l9 7.5"/>
+                <path d="M5.5 10v9a1 1 0 0 0 1 1H9.5v-5.5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V20h3a1 1 0 0 0 1-1v-9"/>
+            </svg>
             <span class="text-[10px] font-bold tracking-wide">Home</span>
         </a>
         <a href="{% url 'my_hosted' %}" class="tab-item flex flex-col items-center justify-center gap-0.5 py-2.5 {% if request.resolver_match.url_name == 'my_hosted' %}tab-active{% endif %}">
-            <span class="text-lg leading-none">📋</span>
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4.5" y="3.5" width="15" height="17" rx="2"/>
+                <path d="M8.5 8h7M8.5 12h7M8.5 16h4"/>
+            </svg>
             <span class="text-[10px] font-bold tracking-wide">Matches</span>
         </a>
         <a href="{% url 'my_joined' %}" class="tab-item flex flex-col items-center justify-center gap-0.5 py-2.5 {% if request.resolver_match.url_name == 'my_joined' %}tab-active{% endif %}">
-            <span class="text-lg leading-none">📥</span>
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 12h4l1.5 3h5L16 12h4"/>
+                <path d="M4 12 6 5.5A1.5 1.5 0 0 1 7.4 4.5h9.2A1.5 1.5 0 0 1 18 5.5L20 12v6a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18v-6Z"/>
+            </svg>
             <span class="text-[10px] font-bold tracking-wide">Requested</span>
         </a>
-        <button type="button" id="mobile-tab-profile" class="tab-item flex flex-col items-center justify-center gap-0.5 py-2.5 relative {% if request.resolver_match.url_name == 'profile' %}tab-active{% endif %}">
-            <span class="relative">
-                <span class="flex items-center justify-center h-5 w-5 rounded-full bg-pitch-600 text-chalk-50 font-display font-bold text-[9px] leading-none">{{ user.profile.initials }}</span>
-                <span id="notif-badge-mobile" class="absolute -top-1.5 -right-1.5 flex items-center justify-center h-3.5 min-w-3.5 px-0.5 rounded-full bg-rose-500 text-white text-[8px] font-bold {% if not unread_notification_count %}hidden{% endif %}">{{ unread_notification_count }}</span>
-            </span>
-            <span class="text-[10px] font-bold tracking-wide">Profile</span>
+        <button type="button" id="mobile-tab-menu-btn" aria-haspopup="true" aria-expanded="false" class="tab-item flex flex-col items-center justify-center gap-0.5 py-2.5 relative">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 7h16M4 12h16M4 17h16"/>
+            </svg>
+            <span class="text-[10px] font-bold tracking-wide">Menu</span>
         </button>
     </div>
 </nav>
+
+{# ---- Mobile-only menu panel: Profile / Turfs / Notifications / Logout. Opened from either the header profile icon or the bottom-tab Menu button. Entirely separate from the desktop profile dropdown above. ---- #}
+<div id="mobile-menu-panel" class="hidden sm:hidden fixed inset-x-3 bottom-20 z-50 bg-white rounded-xl shadow-lg border border-ink-900/10 py-1.5">
+    <p class="px-3.5 py-2 text-xs font-semibold text-ink-500 truncate border-b border-ink-900/10">{{ user.profile.display_name }}</p>
+    <a href="{% url 'profile' %}" class="flex items-center gap-2.5 px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">
+        <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
+        Profile
+    </a>
+    <a href="{% url 'turf_directory' %}" class="flex items-center gap-2.5 px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">
+        <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.3"/></svg>
+        Turfs
+    </a>
+    <a href="{% url 'notification_list' %}" class="flex items-center gap-2.5 px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">
+        <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        Notifications
+    </a>
+    <a href="{% url 'logout' %}" class="flex items-center gap-2.5 px-3.5 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-500/5 border-t border-ink-900/10 mt-1">
+        <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5.5A1.5 1.5 0 0 1 4 19.5v-15A1.5 1.5 0 0 1 5.5 3H9"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+        Log out
+    </a>
+</div>
 {% endif %}
 
 {% if user.is_authenticated and not has_push_subscription %}
@@ -183,7 +237,8 @@
       });
     }
     setupMenu('profile-menu-btn', 'profile-menu');
-    setupMenu('mobile-tab-profile', 'profile-menu');
+    setupMenu('mobile-tab-menu-btn', 'mobile-menu-panel');
+    setupMenu('mobile-header-menu-btn', 'mobile-menu-panel');
     document.addEventListener('click', function () {
       document.querySelectorAll('.hidden-menu-open').forEach(function (m) {
         m.classList.add('hidden');

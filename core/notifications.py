@@ -35,13 +35,15 @@ def notify(recipient, verb, message, match=None, request=None):
         except Exception:
             url = '/'
 
-    send_push_to_user(recipient, title='SquadTurf', body=message, url=url)
+    send_push_to_user(recipient, title='SquadTurf', body=message, url=url, verb=verb)
     return note
 
 
-def send_push_to_user(user, title, body, url='/'):
+def send_push_to_user(user, title, body, url='/', verb=None):
     """Push `title`/`body` to every device the user has subscribed on.
     Dead subscriptions (410/404 from the push service) are cleaned up.
+    `verb` (a Notification.Verb value) rides along in the payload so the
+    client can play the matching whistle pattern for this event type.
     """
     if not PUSH_AVAILABLE:
         return
@@ -52,7 +54,7 @@ def send_push_to_user(user, title, body, url='/'):
     if not subscriptions:
         return
 
-    payload = json.dumps({'title': title, 'body': body, 'url': url})
+    payload = json.dumps({'title': title, 'body': body, 'url': url, 'verb': verb})
 
     for sub in subscriptions:
         subscription_info = {

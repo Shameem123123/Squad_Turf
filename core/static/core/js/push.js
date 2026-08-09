@@ -90,30 +90,164 @@
     return { ok: true };
   }
 
-  // ---- The whistle -----------------------------------------------------
-  // SquadTurf's own attention-sound: a short referee-whistle clip, played
-  // client-side whenever we can (foreground tab via SW postMessage, or the
-  // live-poll noticing new unread notifications). The Web Push/Notification
-  // APIs don't let a site set a custom OS-level sound for a background push
-  // — that part still falls back to whatever the browser/OS plays — but
-  // this covers every case where SquadTurf's own JS gets a chance to run.
-  var whistleAudio = null;
-  function playWhistle() {
+  // ---- The whistle -------------------------------------------------------
+  // SquadTurf's attention-sound is synthesized live with the Web Audio API
+  // rather than a single static clip, so every kind of match event gets its
+  // own short, organic referee-whistle "call" instead of one generic beep:
+  //   - a bright sawtooth+square tone pair (the "brass" of a pea whistle)
+  //   - band-pass filtered around ~2.6-3.4kHz, where real whistles sit
+  //   - a fast ~13-16Hz pitch warble (the rolling "pea" trill)
+  //   - a snappy attack/decay envelope so each blast has a real "puff"
+  // Patterns below string multiple blasts/gaps together per event type —
+  // e.g. a cancelled match gets two slight whistles then one long one.
+
+  var audioCtx = null;
+  function getCtx() {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    if (!audioCtx) {
+      try { audioCtx = new AC(); } catch (e) { return null; }
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(function () { /* needs a user gesture first — fine */ });
+    }
+    return audioCtx;
+  }
+
+  function blast(ctx, startTime, duration, opts) {
+    opts = opts || {};
+    var baseFreq = opts.freq || 3000;
+    var bend = opts.bend || 0;
+    var volume = opts.volume != null ? opts.volume : 0.75;
+    var warbleRate = opts.warbleRate != null ? opts.warbleRate : 14;
+    var warbleDepth = opts.warbleDepth != null ? opts.warbleDepth : 85;
+    var stopAt = startTime + duration + 0.03;
+
+    var osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    var osc2 = ctx.createOscillator();
+    osc2.type = 'square';
+
+    var filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = baseFreq;
+    filter.Q.value = 6.5;
+
+    var gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, startTime);
+    gain.gain.exponentialRampToValueAtTime(Math.max(volume, 0.001), startTime + 0.014);
+    gain.gain.setValueAtTime(volume, startTime + Math.max(duration - 0.045, 0.016));
+    gain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
+
+    var lfo = ctx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = warbleRate;
+    var lfoGain = ctx.createGain();
+    lfoGain.gain.value = warbleDepth;
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc.frequency);
+    lfoGain.connect(osc2.frequency);
+
+    osc.frequency.setValueAtTime(baseFreq, startTime);
+    osc2.frequency.setValueAtTime(baseFreq * 1.01, startTime);
+    if (bend) {
+      osc.frequency.linearRampToValueAtTime(baseFreq + bend, stopAt);
+      osc2.frequency.linearRampToValueAtTime(baseFreq * 1.01 + bend, stopAt);
+    }
+
+    osc.connect(filter);
+    osc2.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(startTime); osc.stop(stopAt);
+    osc2.start(startTime); osc2.stop(stopAt);
+    lfo.start(startTime); lfo.stop(stopAt);
+  }
+
+  // Each entry is a sequence of blasts. `gap` is the silence (seconds)
+  // after that particular blast before the next one starts.
+  var PATTERNS = {
+    // One-time "kick off" landing sting — short, sharp, rising.
+    KICKOFF: [
+      { freq: 3000, duration: 0.2, bend: 260, volume: 0.7 },
+    ],
+    // Someone wants to join your match: one clean, medium call.
+    JOIN_REQUEST: [
+      { freq: 2900, duration: 0.22, bend: 70, volume: 0.75 },
+    ],
+    // Your request got accepted: one long, confident, rising blast.
+    REQUEST_ACCEPTED: [
+      { freq: 2850, duration: 0.62, bend: 420, volume: 0.8 },
+    ],
+    // Declined: one short, low, falling blast — deliberately duller.
+    REQUEST_DECLINED: [
+      { freq: 2550, duration: 0.2, bend: -320, volume: 0.62 },
+    ],
+    // A player dropped out: short, neutral, slightly falling.
+    PLAYER_LEFT: [
+      { freq: 2650, duration: 0.18, bend: -150, volume: 0.62 },
+    ],
+    // Match filled up: three quick ascending blasts — celebratory.
+    MATCH_FILLED: [
+      { freq: 2850, duration: 0.11, bend: 40, volume: 0.72, gap: 0.06 },
+      { freq: 3050, duration: 0.11, bend: 40, volume: 0.76, gap: 0.06 },
+      { freq: 3350, duration: 0.18, bend: 120, volume: 0.85 },
+    ],
+    // Cancelled: two slight whistles, then one long whistle. As specific
+    // and "matchday" as it gets — this is how referees call off play.
+    MATCH_CANCELLED: [
+      { freq: 2750, duration: 0.11, bend: 0, volume: 0.55, warbleRate: 12, gap: 0.1 },
+      { freq: 2750, duration: 0.11, bend: 0, volume: 0.55, warbleRate: 12, gap: 0.24 },
+      { freq: 2650, duration: 0.7, bend: -180, volume: 0.8, warbleRate: 13 },
+    ],
+    // Pre-match reminder: single, softer, medium-length call.
+    REMINDER: [
+      { freq: 2800, duration: 0.3, bend: 60, volume: 0.55 },
+    ],
+    // New match posted nearby / generic fallback: a crisp double-tap.
+    DEFAULT: [
+      { freq: 3000, duration: 0.1, bend: 0, volume: 0.68, gap: 0.075 },
+      { freq: 3250, duration: 0.14, bend: 60, volume: 0.75 },
+    ],
+  };
+  PATTERNS.NEW_MATCH = PATTERNS.DEFAULT;
+
+  var fallbackAudio = null;
+  function playFallback() {
     try {
-      if (!whistleAudio) {
-        whistleAudio = new Audio('/static/core/audio/whistle.wav');
-        whistleAudio.volume = 0.85;
+      if (!fallbackAudio) {
+        fallbackAudio = new Audio('/static/core/audio/whistle.wav');
+        fallbackAudio.volume = 0.85;
       }
-      whistleAudio.currentTime = 0;
-      var p = whistleAudio.play();
-      if (p && p.catch) p.catch(function () { /* autoplay blocked until first user gesture — fine */ });
+      fallbackAudio.currentTime = 0;
+      var p = fallbackAudio.play();
+      if (p && p.catch) p.catch(function () { /* autoplay blocked until first gesture — fine */ });
     } catch (e) { /* ignore */ }
+  }
+
+  function playWhistle(verb) {
+    var ctx = getCtx();
+    if (!ctx) {
+      playFallback();
+      return;
+    }
+    try {
+      var pattern = PATTERNS[verb] || PATTERNS.DEFAULT;
+      var t = ctx.currentTime + 0.015;
+      pattern.forEach(function (note) {
+        blast(ctx, t, note.duration, note);
+        t += note.duration + (note.gap || 0.03);
+      });
+    } catch (e) {
+      playFallback();
+    }
   }
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', function (event) {
       if (event.data && event.data.type === 'squadturf-push') {
-        playWhistle();
+        playWhistle(event.data.verb);
       }
     });
   }
