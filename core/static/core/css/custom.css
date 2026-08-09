@@ -117,9 +117,119 @@ input:focus, select:focus, textarea:focus {
 }
 
 
+/* ---- Logo: constant "scanning" sweep behind the ball, never idle ------- */
+
+.logo-ball {
+  display: inline-block;
+  animation: logo-spin 4.5s linear infinite;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.25));
+}
+
+.logo-scan-ring {
+  border: 2px solid transparent;
+  border-top-color: #FFD23F;
+  border-right-color: #FFD23F;
+  border-radius: 9999px;
+  animation: logo-scan 1.6s linear infinite;
+}
+
+@keyframes logo-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes logo-scan {
+  from { transform: rotate(0deg); opacity: 0.9; }
+  to { transform: rotate(360deg); opacity: 0.9; }
+}
+
+/* ---- Mobile bottom tab bar ---------------------------------------------- */
+
+.tab-item {
+  color: rgba(251, 250, 246, 0.55);
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.tab-item:active {
+  transform: scale(0.92);
+}
+
+.tab-item.tab-active {
+  color: #FFD23F;
+}
+
+.tab-item.tab-active span:first-child {
+  animation: tab-pop 0.35s ease;
+}
+
+@keyframes tab-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+
+/* ---- Home-page kickoff intro (mobile) ----------------------------------- */
+
+#kickoff-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at center, #116041 0%, #08251C 100%);
+  overflow: hidden;
+  animation: kickoff-fade-out 0.4s ease 1.35s forwards;
+}
+
+#kickoff-intro .kickoff-ball {
+  font-size: 3.5rem;
+  animation: kickoff-roll 1.1s cubic-bezier(0.3, 0.9, 0.4, 1) forwards;
+}
+
+#kickoff-intro .kickoff-ball span {
+  display: inline-block;
+  animation: kickoff-spin 0.5s linear infinite;
+}
+
+#kickoff-intro .kickoff-text {
+  position: absolute;
+  bottom: 30%;
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #FFD23F;
+  font-size: 1.1rem;
+  opacity: 0;
+  animation: kickoff-text-in 0.4s ease 0.7s forwards;
+}
+
+@keyframes kickoff-roll {
+  0%   { transform: translateX(-140vw) translateY(0); }
+  70%  { transform: translateX(6vw) translateY(-14px); }
+  85%  { transform: translateX(-2vw) translateY(0); }
+  100% { transform: translateX(0) translateY(0); }
+}
+
+@keyframes kickoff-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes kickoff-text-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes kickoff-fade-out {
+  from { opacity: 1; visibility: visible; }
+  to { opacity: 0; visibility: hidden; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .ticket, .toast, .animate-ping {
+  .ticket, .toast, .animate-ping, .logo-ball, .logo-scan-ring, #kickoff-intro, #kickoff-intro .kickoff-ball, #kickoff-intro .kickoff-text {
     animation: none !important;
     transition: none !important;
   }
+  #kickoff-intro { display: none !important; }
 }

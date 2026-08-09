@@ -12,16 +12,26 @@
 
   var lastSig = body.dataset.liveSig || '0';
   var inFlight = false;
+  var lastUnread = null;
 
   function updateBadge(count) {
     var badge = document.getElementById('notif-badge');
-    if (!badge) return;
-    if (count > 0) {
-      badge.textContent = count > 99 ? '99+' : String(count);
-      badge.classList.remove('hidden');
-    } else {
-      badge.classList.add('hidden');
+    // A fresh, higher unread count means something new landed while this
+    // tab was open — give it the same whistle sound a push notification
+    // would get, instead of a silent badge nobody notices.
+    if (lastUnread !== null && count > lastUnread && window.SquadTurfPush) {
+      window.SquadTurfPush.playWhistle();
     }
+    lastUnread = count;
+    [badge, document.getElementById('notif-badge-mobile')].forEach(function (el) {
+      if (!el) return;
+      if (count > 0) {
+        el.textContent = count > 99 ? '99+' : String(count);
+        el.classList.remove('hidden');
+      } else {
+        el.classList.add('hidden');
+      }
+    });
   }
 
   function softReload() {

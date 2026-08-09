@@ -90,8 +90,37 @@
     return { ok: true };
   }
 
+  // ---- The whistle -----------------------------------------------------
+  // SquadTurf's own attention-sound: a short referee-whistle clip, played
+  // client-side whenever we can (foreground tab via SW postMessage, or the
+  // live-poll noticing new unread notifications). The Web Push/Notification
+  // APIs don't let a site set a custom OS-level sound for a background push
+  // — that part still falls back to whatever the browser/OS plays — but
+  // this covers every case where SquadTurf's own JS gets a chance to run.
+  var whistleAudio = null;
+  function playWhistle() {
+    try {
+      if (!whistleAudio) {
+        whistleAudio = new Audio('/static/core/audio/whistle.wav');
+        whistleAudio.volume = 0.85;
+      }
+      whistleAudio.currentTime = 0;
+      var p = whistleAudio.play();
+      if (p && p.catch) p.catch(function () { /* autoplay blocked until first user gesture — fine */ });
+    } catch (e) { /* ignore */ }
+  }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', function (event) {
+      if (event.data && event.data.type === 'squadturf-push') {
+        playWhistle();
+      }
+    });
+  }
+
   window.SquadTurfPush = {
     subscribe: subscribeToPush,
+    playWhistle: playWhistle,
     messageFor: function (reason) {
       return REASON_MESSAGES[reason] || "Couldn't enable notifications. Please try again.";
     },

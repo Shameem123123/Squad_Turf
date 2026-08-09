@@ -395,15 +395,38 @@ def match_detail(request, match_id):
 
     join_requests = None
     user_request = None
-    existing_rating = None
+    is_accepted_player = False
+    existing_rating = None      # a non-host accepted player's rating of the host
+    rateable_players = []       # host-only: one rating slot per accepted player
 
     if is_host:
         join_requests = match.requests.select_related('player', 'player__profile').order_by('-created_at')
     elif request.user.is_authenticated:
         user_request = JoinRequest.objects.filter(match=match, player=request.user).first()
+        is_accepted_player = bool(user_request and user_request.status == JoinRequest.Status.ACCEPTED)
 
+    # Rating only makes sense for people who were actually part of the match:
+    # the host (rating each player who showed up) or a player the host
+    # actually accepted (rating the host). Anyone else viewing a past match
+    # — a rejected/pending applicant, a random visitor — never sees the form.
     if request.user.is_authenticated and is_past:
-        existing_rating = Rating.objects.filter(match=match, rater=request.user).first()
+        if is_host:
+            accepted_reqs = match.requests.filter(
+                status=JoinRequest.Status.ACCEPTED
+            ).select_related('player', 'player__profile')
+            given = {
+                r.rated_user_id: r
+                for r in Rating.objects.filter(match=match, rater=request.user)
+            }
+            for req in accepted_reqs:
+                rateable_players.append({
+                    'player': req.player,
+                    'existing_rating': given.get(req.player_id),
+                })
+        elif is_accepted_player:
+            existing_rating = Rating.objects.filter(
+                match=match, rater=request.user, rated_user=match.host
+            ).first()
 
     context = {
         'match': match,
@@ -411,7 +434,9 @@ def match_detail(request, match_id):
         'join_requests': join_requests,
         'user_request': user_request,
         'is_past': is_past,
+        'is_accepted_player': is_accepted_player,
         'existing_rating': existing_rating,
+        'rateable_players': rateable_players,
     }
     return render(request, 'core/match_detail.html', context)
 
@@ -575,19 +600,37 @@ def respond_request(request, request_id, action):
 
 @login_required
 def submit_rating(request, match_id):
+    """Each accepted player is rated separately — a host with three
+    accepted players submits three independent ratings, one per player,
+    instead of one rating standing in for the whole match. Only the host
+    and players the host actually accepted are allowed to rate anyone."""
     match = get_object_or_404(Match, id=match_id)
 
     if request.method == 'POST':
-        stars = int(request.POST.get('stars', 5))
+        stars = max(1, min(5, int(request.POST.get('stars', 5))))
         showed_up = request.POST.get('showed_up') == 'on'
 
         rated_user = None
-        if request.user.id != match.host_id:
-            rated_user = match.host
+        if request.user.id == match.host_id:
+            # Host rates one specific accepted player per submission.
+            accepted_players = {
+                r.player_id: r.player
+                for r in match.requests.filter(
+                    status=JoinRequest.Status.ACCEPTED
+                ).select_related('player')
+            }
+            try:
+                rated_user_id = int(request.POST.get('rated_user_id', ''))
+            except (TypeError, ValueError):
+                rated_user_id = None
+            rated_user = accepted_players.get(rated_user_id)
         else:
-            accepted = match.requests.filter(status=JoinRequest.Status.ACCEPTED).first()
-            if accepted:
-                rated_user = accepted.player
+            # Only a player the host actually accepted may rate the host.
+            was_accepted = JoinRequest.objects.filter(
+                match=match, player=request.user, status=JoinRequest.Status.ACCEPTED
+            ).exists()
+            if was_accepted:
+                rated_user = match.host
 
         if rated_user:
             Rating.objects.update_or_create(

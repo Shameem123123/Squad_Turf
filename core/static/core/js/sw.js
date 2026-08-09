@@ -27,16 +27,29 @@ self.addEventListener('push', function (event) {
     icon: '/static/core/img/icon-192.png',
     badge: '/static/core/img/icon-192.png',
     data: { url: data.url || '/' },
+    // A shared tag groups related alerts, but renotify:true forces the
+    // OS to re-alert (vibrate/sound/heads-up) on every single one rather
+    // than silently swapping the old banner for the new one.
     tag: 'squadturf-notification',
     renotify: true,
-    // The Notification API has no "sound" field — the OS/browser plays its
-    // own default notification sound automatically as long as we don't
-    // silence it. `vibrate` covers the phone-in-your-pocket case.
+    requireInteraction: false,
     silent: false,
-    vibrate: [200, 100, 200, 100, 200],
+    vibrate: [200, 80, 200, 80, 400],
   };
 
-  event.waitUntil(self.registration.showNotification(data.title || 'SquadTurf', options));
+  event.waitUntil(
+    Promise.all([
+      self.registration.showNotification(data.title || 'SquadTurf', options),
+      // If a SquadTurf tab happens to be open in the foreground, the OS
+      // often won't play a sound for it at all — so tell any open tabs to
+      // play the whistle themselves instead of relying on the system.
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
+        clientList.forEach(function (client) {
+          client.postMessage({ type: 'squadturf-push', title: data.title, body: data.body, url: data.url });
+        });
+      }),
+    ])
+  );
 });
 
 self.addEventListener('notificationclick', function (event) {

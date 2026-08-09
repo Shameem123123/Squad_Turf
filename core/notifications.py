@@ -65,6 +65,11 @@ def send_push_to_user(user, title, body, url='/'):
                 data=payload,
                 vapid_private_key=settings.VAPID_PRIVATE_KEY,
                 vapid_claims={'sub': f"mailto:{settings.VAPID_ADMIN_EMAIL}"},
+                # High urgency + a short TTL is what pushes the browser/OS to
+                # wake up and deliver this as an immediate heads-up banner
+                # instead of quietly queuing it for a lazy background sync.
+                ttl=60,
+                headers={'Urgency': 'high'},
             )
         except WebPushException as exc:
             status = getattr(exc.response, 'status_code', None)
