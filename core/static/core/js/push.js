@@ -107,7 +107,7 @@
   // e.g. a cancelled match gets two slight whistles then one long one.
 
   var AUDIO_FILES = {
-    NEW_MATCH: '/static/core/audio/new_match.wav',
+    NEW_MATCH: '/static/core/audio/new_match.mp3',
     JOIN_REQUEST: '/static/core/audio/join_request.wav',
     REQUEST_ACCEPTED: '/static/core/audio/request_accepted.wav',
     REQUEST_DECLINED: '/static/core/audio/request_declined.wav',
