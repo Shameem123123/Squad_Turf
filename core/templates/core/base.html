@@ -71,10 +71,11 @@
                     </svg>
                     <span id="notif-badge-mobile" class="absolute -top-0.5 -right-0.5 flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold {% if not unread_notification_count %}hidden{% endif %}">{{ unread_notification_count }}</span>
                 </a>
-                <button id="mobile-header-menu-btn" type="button" aria-haspopup="true" aria-expanded="false"
-                        class="sm:hidden flex items-center justify-center h-9 w-9 rounded-full bg-pitch-600 text-chalk-50 font-display font-bold text-xs active:scale-95 transition-transform" aria-label="Menu">
+                {# ---- Mobile-only header profile icon: goes straight to the profile page (not a menu). The bottom-tab "Menu" button still opens the full mobile menu panel, untouched. ---- #}
+                <a href="{% url 'profile' %}"
+                   class="sm:hidden flex items-center justify-center h-9 w-9 rounded-full bg-pitch-600 text-chalk-50 font-display font-bold text-xs active:scale-95 transition-transform" aria-label="Profile">
                     {{ user.profile.initials }}
-                </button>
+                </a>
 
                 {# ---- Desktop-only text links; mobile gets these as bottom tabs instead ---- #}
                 <a href="{% url 'feed' %}" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-chalk-100/90 hover:text-floodlight-400 transition-colors px-2">
@@ -238,7 +239,7 @@
     }
     setupMenu('profile-menu-btn', 'profile-menu');
     setupMenu('mobile-tab-menu-btn', 'mobile-menu-panel');
-    setupMenu('mobile-header-menu-btn', 'mobile-menu-panel');
+    {# ---- mobile-header-menu-btn is now a direct link to the profile page (see header above), so it's intentionally not wired to open mobile-menu-panel anymore. ---- #}
     document.addEventListener('click', function () {
       document.querySelectorAll('.hidden-menu-open').forEach(function (m) {
         m.classList.add('hidden');

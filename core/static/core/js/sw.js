@@ -12,6 +12,26 @@ self.addEventListener('activate', function (event) {
   event.waitUntil(self.clients.claim());
 });
 
+// Distinct vibration patterns per event type. This is the one piece of
+// "distinct feel per notification type" that a service worker can actually
+// control for a system-tray notification — browsers do NOT support a
+// custom sound file for showNotification() (that option was dropped from
+// the spec years ago), so the OS/browser always plays its own default
+// notification tone for a true background/closed-app push. The custom
+// whistle files only play when a SquadTurf tab is open somewhere (even in
+// the background, e.g. while you're in Instagram with the tab still
+// alive) — see push.js, which the message-relay below feeds.
+var VIBRATE_PATTERNS = {
+  JOIN_REQUEST: [180, 60, 180],
+  REQUEST_ACCEPTED: [400],
+  REQUEST_DECLINED: [120],
+  PLAYER_LEFT: [150, 80, 150],
+  MATCH_FILLED: [100, 50, 100, 50, 250],
+  MATCH_CANCELLED: [120, 90, 120, 220, 500],
+  REMINDER: [250, 100, 250],
+  NEW_MATCH: [150, 80, 150, 80, 150],
+};
+
 self.addEventListener('push', function (event) {
   var data = { title: 'SquadTurf', body: 'You have a new update.', url: '/' };
   try {
@@ -27,14 +47,15 @@ self.addEventListener('push', function (event) {
     icon: '/static/core/img/icon-192.png',
     badge: '/static/core/img/icon-192.png',
     data: { url: data.url || '/' },
-    // A shared tag groups related alerts, but renotify:true forces the
-    // OS to re-alert (vibrate/sound/heads-up) on every single one rather
-    // than silently swapping the old banner for the new one.
-    tag: 'squadturf-notification',
+    // A per-verb tag means a JOIN_REQUEST banner and a REQUEST_ACCEPTED
+    // banner never collapse into each other, and renotify:true forces the
+    // OS to re-alert (vibrate/heads-up) on every single one rather than
+    // silently swapping the old banner for the new one.
+    tag: 'squadturf-' + (data.verb || 'notification'),
     renotify: true,
     requireInteraction: false,
     silent: false,
-    vibrate: [200, 80, 200, 80, 400],
+    vibrate: VIBRATE_PATTERNS[data.verb] || [200, 80, 200, 80, 400],
   };
 
   event.waitUntil(

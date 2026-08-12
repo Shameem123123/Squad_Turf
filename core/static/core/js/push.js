@@ -91,15 +91,64 @@
   }
 
   // ---- The whistle -------------------------------------------------------
-  // SquadTurf's attention-sound is synthesized live with the Web Audio API
-  // rather than a single static clip, so every kind of match event gets its
-  // own short, organic referee-whistle "call" instead of one generic beep:
+  // Every event type has its own whistle *audio file* under
+  // /static/core/audio/ (see AUDIO_FILES below). To try a different sound,
+  // just replace the file — keep the same filename and it's picked up
+  // automatically, no code changes needed. See
+  // static/core/audio/README.txt for exact filenames + tips.
+  //
+  // If a file is missing or fails to load, playWhistle() falls back to a
+  // whistle synthesized live with the Web Audio API, so sound never breaks:
   //   - a bright sawtooth+square tone pair (the "brass" of a pea whistle)
   //   - band-pass filtered around ~2.6-3.4kHz, where real whistles sit
   //   - a fast ~13-16Hz pitch warble (the rolling "pea" trill)
   //   - a snappy attack/decay envelope so each blast has a real "puff"
   // Patterns below string multiple blasts/gaps together per event type —
   // e.g. a cancelled match gets two slight whistles then one long one.
+
+  var AUDIO_FILES = {
+    NEW_MATCH: '/static/core/audio/new_match.wav',
+    JOIN_REQUEST: '/static/core/audio/join_request.wav',
+    REQUEST_ACCEPTED: '/static/core/audio/request_accepted.wav',
+    REQUEST_DECLINED: '/static/core/audio/request_declined.wav',
+    PLAYER_LEFT: '/static/core/audio/player_left.wav',
+    MATCH_FILLED: '/static/core/audio/match_filled.wav',
+    MATCH_CANCELLED: '/static/core/audio/match_cancelled.wav',
+    REMINDER: '/static/core/audio/reminder.wav',
+    KICKOFF: '/static/core/audio/new_match.wav',
+    DEFAULT: '/static/core/audio/default.wav',
+  };
+
+  // One <audio> element per file, created lazily and reused so repeated
+  // notifications don't re-fetch the file every time.
+  var audioElCache = {};
+  function getAudioEl(verb) {
+    var src = AUDIO_FILES[verb] || AUDIO_FILES.DEFAULT;
+    if (!audioElCache[src]) {
+      var el = new Audio(src);
+      el.preload = 'auto';
+      el.volume = 0.9;
+      audioElCache[src] = el;
+    }
+    return audioElCache[src];
+  }
+
+  function playRealFile(verb) {
+    return new Promise(function (resolve, reject) {
+      try {
+        var el = getAudioEl(verb);
+        el.currentTime = 0;
+        var p = el.play();
+        if (p && p.then) {
+          p.then(resolve).catch(reject);
+        } else {
+          resolve();
+        }
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
 
   var audioCtx = null;
   function getCtx() {
@@ -226,7 +275,7 @@
     } catch (e) { /* ignore */ }
   }
 
-  function playWhistle(verb) {
+  function playSynthesized(verb) {
     var ctx = getCtx();
     if (!ctx) {
       playFallback();
@@ -242,6 +291,15 @@
     } catch (e) {
       playFallback();
     }
+  }
+
+  // Real audio file first (this is what picks up manually swapped-in
+  // sounds); if it's missing/blocked/fails, fall back to the live synth
+  // so a broken/missing file never means silence.
+  function playWhistle(verb) {
+    playRealFile(verb).catch(function () {
+      playSynthesized(verb);
+    });
   }
 
   if ('serviceWorker' in navigator) {
