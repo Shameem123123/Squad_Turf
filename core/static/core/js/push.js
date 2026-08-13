@@ -90,53 +90,36 @@
     return { ok: true };
   }
 
-  // ---- The whistle -------------------------------------------------------
-  // Every event type has its own whistle *audio file* under
-  // /static/core/audio/ (see AUDIO_FILES below). To try a different sound,
-  // just replace the file — keep the same filename and it's picked up
-  // automatically, no code changes needed. See
-  // static/core/audio/README.txt for exact filenames + tips.
+  // ---- Notification sound -------------------------------------------------
+  // Deliberately ONE sound for every event type — matching a normal phone's
+  // "usual notification tone" instead of a distinct jingle per verb. This is
+  // only ever used as an in-page fallback for the moment a system push
+  // notification's own sound gets suppressed by the browser (see the
+  // hasFocus() guard around playNotificationSound() below); it is never
+  // meant to layer on top of the system sound, only substitute for it.
   //
-  // If a file is missing or fails to load, playWhistle() falls back to a
-  // whistle synthesized live with the Web Audio API, so sound never breaks:
-  //   - a bright sawtooth+square tone pair (the "brass" of a pea whistle)
-  //   - band-pass filtered around ~2.6-3.4kHz, where real whistles sit
-  //   - a fast ~13-16Hz pitch warble (the rolling "pea" trill)
-  //   - a snappy attack/decay envelope so each blast has a real "puff"
-  // Patterns below string multiple blasts/gaps together per event type —
-  // e.g. a cancelled match gets two slight whistles then one long one.
+  // If the bundled file is missing or fails to load, playNotificationSound()
+  // falls back to a single short tone synthesized live with the Web Audio
+  // API, so sound never breaks silently.
 
-  var AUDIO_FILES = {
-    NEW_MATCH: '/static/core/audio/new_match.mp3',
-    JOIN_REQUEST: '/static/core/audio/join_request.wav',
-    REQUEST_ACCEPTED: '/static/core/audio/request_accepted.wav',
-    REQUEST_DECLINED: '/static/core/audio/request_declined.wav',
-    PLAYER_LEFT: '/static/core/audio/player_left.wav',
-    MATCH_FILLED: '/static/core/audio/match_filled.wav',
-    MATCH_CANCELLED: '/static/core/audio/match_cancelled.wav',
-    REMINDER: '/static/core/audio/reminder.wav',
-    KICKOFF: '/static/core/audio/new_match.wav',
-    DEFAULT: '/static/core/audio/default.wav',
-  };
+  var DEFAULT_AUDIO_SRC = '/static/core/audio/default.wav';
 
-  // One <audio> element per file, created lazily and reused so repeated
-  // notifications don't re-fetch the file every time.
-  var audioElCache = {};
-  function getAudioEl(verb) {
-    var src = AUDIO_FILES[verb] || AUDIO_FILES.DEFAULT;
-    if (!audioElCache[src]) {
-      var el = new Audio(src);
-      el.preload = 'auto';
-      el.volume = 0.9;
-      audioElCache[src] = el;
+  // One <audio> element, created lazily and reused so repeated notifications
+  // don't re-fetch the file every time.
+  var defaultAudioEl = null;
+  function getAudioEl() {
+    if (!defaultAudioEl) {
+      defaultAudioEl = new Audio(DEFAULT_AUDIO_SRC);
+      defaultAudioEl.preload = 'auto';
+      defaultAudioEl.volume = 0.9;
     }
-    return audioElCache[src];
+    return defaultAudioEl;
   }
 
-  function playRealFile(verb) {
+  function playRealFile() {
     return new Promise(function (resolve, reject) {
       try {
-        var el = getAudioEl(verb);
+        var el = getAudioEl();
         el.currentTime = 0;
         var p = el.play();
         if (p && p.then) {
@@ -163,110 +146,34 @@
     return audioCtx;
   }
 
-  function blast(ctx, startTime, duration, opts) {
-    opts = opts || {};
-    var baseFreq = opts.freq || 3000;
-    var bend = opts.bend || 0;
-    var volume = opts.volume != null ? opts.volume : 0.75;
-    var warbleRate = opts.warbleRate != null ? opts.warbleRate : 14;
-    var warbleDepth = opts.warbleDepth != null ? opts.warbleDepth : 85;
+  // A single short, neutral "blip" — the same tone every time, regardless
+  // of event type. This is a generic stand-in for a phone's default
+  // notification tone, not a distinct sound per verb.
+  function playTone(ctx, startTime) {
+    var duration = 0.16;
     var stopAt = startTime + duration + 0.03;
 
     var osc = ctx.createOscillator();
-    osc.type = 'sawtooth';
-    var osc2 = ctx.createOscillator();
-    osc2.type = 'square';
-
-    var filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = baseFreq;
-    filter.Q.value = 6.5;
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, startTime);
 
     var gain = ctx.createGain();
     gain.gain.setValueAtTime(0.0001, startTime);
-    gain.gain.exponentialRampToValueAtTime(Math.max(volume, 0.001), startTime + 0.014);
-    gain.gain.setValueAtTime(volume, startTime + Math.max(duration - 0.045, 0.016));
+    gain.gain.exponentialRampToValueAtTime(0.5, startTime + 0.012);
+    gain.gain.setValueAtTime(0.5, startTime + duration - 0.05);
     gain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
 
-    var lfo = ctx.createOscillator();
-    lfo.type = 'sine';
-    lfo.frequency.value = warbleRate;
-    var lfoGain = ctx.createGain();
-    lfoGain.gain.value = warbleDepth;
-    lfo.connect(lfoGain);
-    lfoGain.connect(osc.frequency);
-    lfoGain.connect(osc2.frequency);
-
-    osc.frequency.setValueAtTime(baseFreq, startTime);
-    osc2.frequency.setValueAtTime(baseFreq * 1.01, startTime);
-    if (bend) {
-      osc.frequency.linearRampToValueAtTime(baseFreq + bend, stopAt);
-      osc2.frequency.linearRampToValueAtTime(baseFreq * 1.01 + bend, stopAt);
-    }
-
-    osc.connect(filter);
-    osc2.connect(filter);
-    filter.connect(gain);
+    osc.connect(gain);
     gain.connect(ctx.destination);
-
-    osc.start(startTime); osc.stop(stopAt);
-    osc2.start(startTime); osc2.stop(stopAt);
-    lfo.start(startTime); lfo.stop(stopAt);
+    osc.start(startTime);
+    osc.stop(stopAt);
   }
-
-  // Each entry is a sequence of blasts. `gap` is the silence (seconds)
-  // after that particular blast before the next one starts.
-  var PATTERNS = {
-    // One-time "kick off" landing sting — short, sharp, rising.
-    KICKOFF: [
-      { freq: 3000, duration: 0.2, bend: 260, volume: 0.7 },
-    ],
-    // Someone wants to join your match: one clean, medium call.
-    JOIN_REQUEST: [
-      { freq: 2900, duration: 0.22, bend: 70, volume: 0.75 },
-    ],
-    // Your request got accepted: one long, confident, rising blast.
-    REQUEST_ACCEPTED: [
-      { freq: 2850, duration: 0.62, bend: 420, volume: 0.8 },
-    ],
-    // Declined: one short, low, falling blast — deliberately duller.
-    REQUEST_DECLINED: [
-      { freq: 2550, duration: 0.2, bend: -320, volume: 0.62 },
-    ],
-    // A player dropped out: short, neutral, slightly falling.
-    PLAYER_LEFT: [
-      { freq: 2650, duration: 0.18, bend: -150, volume: 0.62 },
-    ],
-    // Match filled up: three quick ascending blasts — celebratory.
-    MATCH_FILLED: [
-      { freq: 2850, duration: 0.11, bend: 40, volume: 0.72, gap: 0.06 },
-      { freq: 3050, duration: 0.11, bend: 40, volume: 0.76, gap: 0.06 },
-      { freq: 3350, duration: 0.18, bend: 120, volume: 0.85 },
-    ],
-    // Cancelled: two slight whistles, then one long whistle. As specific
-    // and "matchday" as it gets — this is how referees call off play.
-    MATCH_CANCELLED: [
-      { freq: 2750, duration: 0.11, bend: 0, volume: 0.55, warbleRate: 12, gap: 0.1 },
-      { freq: 2750, duration: 0.11, bend: 0, volume: 0.55, warbleRate: 12, gap: 0.24 },
-      { freq: 2650, duration: 0.7, bend: -180, volume: 0.8, warbleRate: 13 },
-    ],
-    // Pre-match reminder: single, softer, medium-length call.
-    REMINDER: [
-      { freq: 2800, duration: 0.3, bend: 60, volume: 0.55 },
-    ],
-    // New match posted nearby / generic fallback: a crisp double-tap.
-    DEFAULT: [
-      { freq: 3000, duration: 0.1, bend: 0, volume: 0.68, gap: 0.075 },
-      { freq: 3250, duration: 0.14, bend: 60, volume: 0.75 },
-    ],
-  };
-  PATTERNS.NEW_MATCH = PATTERNS.DEFAULT;
 
   var fallbackAudio = null;
   function playFallback() {
     try {
       if (!fallbackAudio) {
-        fallbackAudio = new Audio('/static/core/audio/whistle.wav');
+        fallbackAudio = new Audio(DEFAULT_AUDIO_SRC);
         fallbackAudio.volume = 0.85;
       }
       fallbackAudio.currentTime = 0;
@@ -275,44 +182,63 @@
     } catch (e) { /* ignore */ }
   }
 
-  function playSynthesized(verb) {
+  function playSynthesized() {
     var ctx = getCtx();
     if (!ctx) {
       playFallback();
       return;
     }
     try {
-      var pattern = PATTERNS[verb] || PATTERNS.DEFAULT;
-      var t = ctx.currentTime + 0.015;
-      pattern.forEach(function (note) {
-        blast(ctx, t, note.duration, note);
-        t += note.duration + (note.gap || 0.03);
-      });
+      playTone(ctx, ctx.currentTime + 0.015);
     } catch (e) {
       playFallback();
     }
   }
 
-  // Real audio file first (this is what picks up manually swapped-in
-  // sounds); if it's missing/blocked/fails, fall back to the live synth
+  // Real audio file first (this is what picks up a manually swapped-in
+  // sound); if it's missing/blocked/fails, fall back to the live synth
   // so a broken/missing file never means silence.
-  function playWhistle(verb) {
-    playRealFile(verb).catch(function () {
-      playSynthesized(verb);
+  function playSound() {
+    playRealFile().catch(function () {
+      playSynthesized();
     });
+  }
+
+  // ---- Avoiding the double-notification-sound bug ------------------------
+  // A system push notification (shown by the service worker) already plays
+  // the device's own "usual notification sound" on its own — that's the
+  // ONE sound a push should ever produce. The only gap is that most
+  // browsers mute/suppress that system sound while the tab that owns the
+  // page is focused in the foreground. So: only play this in-page sound
+  // when the tab is actually focused (i.e. the case the system sound would
+  // otherwise skip), and never in the background/closed-tab case where the
+  // system notification is already handling it — that combination is what
+  // used to cause two sounds to fire together.
+  //
+  // A short cooldown lock also guards against the push relay (below) and
+  // live.js's poller both reacting to the same underlying event and each
+  // trying to play a sound moments apart.
+  var lastPlayedAt = 0;
+  var SOUND_COOLDOWN_MS = 1500;
+  function playNotificationSound() {
+    if (!document.hasFocus() || document.hidden) return;
+    var now = Date.now();
+    if (now - lastPlayedAt < SOUND_COOLDOWN_MS) return;
+    lastPlayedAt = now;
+    playSound();
   }
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', function (event) {
       if (event.data && event.data.type === 'squadturf-push') {
-        playWhistle(event.data.verb);
+        playNotificationSound();
       }
     });
   }
 
   window.SquadTurfPush = {
     subscribe: subscribeToPush,
-    playWhistle: playWhistle,
+    playNotificationSound: playNotificationSound,
     messageFor: function (reason) {
       return REASON_MESSAGES[reason] || "Couldn't enable notifications. Please try again.";
     },

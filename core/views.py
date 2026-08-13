@@ -807,4 +807,8 @@ def service_worker(request):
     content = sw_path.read_text(encoding='utf-8')
     response = HttpResponse(content, content_type='application/javascript')
     response['Service-Worker-Allowed'] = '/'
+    # Without this, some browsers/proxies cache sw.js for a while, so a
+    # deployed fix (like this one) can take a long time to actually reach
+    # a returning visitor's device.
+    response['Cache-Control'] = 'no-cache'
     return response

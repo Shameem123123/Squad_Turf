@@ -12,25 +12,13 @@ self.addEventListener('activate', function (event) {
   event.waitUntil(self.clients.claim());
 });
 
-// Distinct vibration patterns per event type. This is the one piece of
-// "distinct feel per notification type" that a service worker can actually
-// control for a system-tray notification — browsers do NOT support a
-// custom sound file for showNotification() (that option was dropped from
-// the spec years ago), so the OS/browser always plays its own default
-// notification tone for a true background/closed-app push. The custom
-// whistle files only play when a SquadTurf tab is open somewhere (even in
-// the background, e.g. while you're in Instagram with the tab still
-// alive) — see push.js, which the message-relay below feeds.
-var VIBRATE_PATTERNS = {
-  JOIN_REQUEST: [180, 60, 180],
-  REQUEST_ACCEPTED: [400],
-  REQUEST_DECLINED: [120],
-  PLAYER_LEFT: [150, 80, 150],
-  MATCH_FILLED: [100, 50, 100, 50, 250],
-  MATCH_CANCELLED: [120, 90, 120, 220, 500],
-  REMINDER: [250, 100, 250],
-  NEW_MATCH: [150, 80, 150, 80, 150],
-};
+// One generic vibration pattern for every event type — browsers do NOT
+// support a custom sound file for showNotification() (that option was
+// dropped from the spec years ago), so the OS/browser always plays its own
+// default notification tone for a background/closed-app push. Keeping a
+// single vibration pattern too means every SquadTurf push feels like a
+// normal phone notification rather than a distinct jingle per event.
+var VIBRATE_PATTERN = [200, 80, 200];
 
 self.addEventListener('push', function (event) {
   var data = { title: 'SquadTurf', body: 'You have a new update.', url: '/' };
@@ -55,15 +43,18 @@ self.addEventListener('push', function (event) {
     renotify: true,
     requireInteraction: false,
     silent: false,
-    vibrate: VIBRATE_PATTERNS[data.verb] || [200, 80, 200, 80, 400],
+    vibrate: VIBRATE_PATTERN,
   };
 
   event.waitUntil(
     Promise.all([
       self.registration.showNotification(data.title || 'SquadTurf', options),
-      // If a SquadTurf tab happens to be open in the foreground, the OS
-      // often won't play a sound for it at all — so tell any open tabs to
-      // play the whistle themselves instead of relying on the system.
+      // Tell any open tabs a push landed so they can refresh their badge
+      // instantly instead of waiting for the next poll. push.js decides
+      // whether to *also* play a sound here — it only does when the tab is
+      // focused (the one case where the system's own notification sound
+      // above tends to get muted by the browser), so a push never ends up
+      // sounding twice.
       self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
         clientList.forEach(function (client) {
           client.postMessage({ type: 'squadturf-push', title: data.title, body: data.body, url: data.url, verb: data.verb });

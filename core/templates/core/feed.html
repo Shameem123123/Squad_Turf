@@ -28,7 +28,7 @@
       return;
     }
     sessionStorage.setItem('squadturf-kickoff-seen', '1');
-    if (window.SquadTurfPush) window.SquadTurfPush.playWhistle('KICKOFF');
+    if (window.SquadTurfPush) window.SquadTurfPush.playNotificationSound();
     setTimeout(function () {
       var el = document.getElementById('kickoff-intro');
       if (el) el.remove();

@@ -18,6 +18,27 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '*']
 
+# ---------------------------------------------------------------------------
+# Reverse-proxy HTTPS support. Most hosts (Render, Railway, Fly, a Nginx/
+# Caddy box, etc.) terminate TLS at the proxy and forward plain HTTP to
+# Django, setting X-Forwarded-Proto to tell you the original request was
+# HTTPS. Without the line below, Django thinks every request is insecure,
+# which breaks the CSRF-protected POSTs that /push/subscribe/ relies on and
+# can make cookies behave oddly — a common, easy-to-miss reason "notifications
+# don't work" once the app is actually deployed (it's fine on localhost,
+# which is why this can go unnoticed until go-live).
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# If you deploy behind a real domain, add it here (or via env var), e.g.
+# DJANGO_CSRF_TRUSTED_ORIGINS=https://squadturf.example.com — otherwise the
+# browser's Origin header on the push-subscribe POST won't match and Django
+# will reject it with a 403 before the subscription ever reaches the server.
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origin.strip()
+]
+
 # Application definition
 
 INSTALLED_APPS = [

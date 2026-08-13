@@ -14,13 +14,15 @@
   var inFlight = false;
   var lastUnread = null;
 
-  function updateBadge(count, latestVerb) {
+  function updateBadge(count) {
     var badge = document.getElementById('notif-badge');
     // A fresh, higher unread count means something new landed while this
-    // tab was open — give it the same whistle sound a push notification
-    // would get, instead of a silent badge nobody notices.
+    // tab was open — give it the same single notification sound a push
+    // would get (playNotificationSound has its own focus check + cooldown,
+    // so this never doubles up with a push that already made a sound for
+    // the same event).
     if (lastUnread !== null && count > lastUnread && window.SquadTurfPush) {
-      window.SquadTurfPush.playWhistle(latestVerb);
+      window.SquadTurfPush.playNotificationSound();
     }
     lastUnread = count;
     [badge, document.getElementById('notif-badge-mobile')].forEach(function (el) {
@@ -55,7 +57,7 @@
     fetch('/api/live/', { credentials: 'same-origin' })
       .then(function (resp) { return resp.json(); })
       .then(function (data) {
-        updateBadge(data.unread || 0, data.latest_verb);
+        updateBadge(data.unread || 0);
         if (data.sig && data.sig !== lastSig) {
           lastSig = data.sig;
           softReload();
@@ -69,4 +71,12 @@
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden) poll();
   });
+
+  // A push can land in between polls — react immediately instead of making
+  // the badge/live-region wait up to POLL_INTERVAL_MS to catch up.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', function (event) {
+      if (event.data && event.data.type === 'squadturf-push') poll();
+    });
+  }
 })();
