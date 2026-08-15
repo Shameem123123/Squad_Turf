@@ -11,7 +11,7 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-3 gap-3 mb-6">
+    <div class="grid grid-cols-2 gap-3 mb-3">
         <div class="bg-white border border-ink-900/10 rounded-xl p-4 text-center">
             <p class="scoreclock text-xl font-bold text-ink-900">{{ stats.hosted_count }}</p>
             <p class="text-[10px] font-bold uppercase tracking-wide text-ink-500 mt-1">Hosted</p>
@@ -20,17 +20,26 @@
             <p class="scoreclock text-xl font-bold text-ink-900">{{ stats.joined_count }}</p>
             <p class="text-[10px] font-bold uppercase tracking-wide text-ink-500 mt-1">Played</p>
         </div>
-        <div class="bg-white border border-ink-900/10 rounded-xl p-4 text-center">
-            <p class="scoreclock text-xl font-bold text-ink-900">{% if stats.average_rating %}{{ stats.average_rating }}★{% else %}—{% endif %}</p>
-            <p class="text-[10px] font-bold uppercase tracking-wide text-ink-500 mt-1">{{ stats.rating_count }} rating{{ stats.rating_count|pluralize }}</p>
-        </div>
     </div>
 
-    {% if stats.reliability_pct is not None %}
-    <div class="bg-pitch-600/5 border border-pitch-600/20 rounded-xl p-4 mb-6">
-        <p class="text-sm text-ink-700"><span class="font-bold text-pitch-700">{{ stats.reliability_pct }}%</span> of players who rated you said you showed up as planned.</p>
+    {# ---- Play rating vs. attendance rating: two distinct, clearly-labeled ---- #}
+    {# ---- metrics — how they play, and whether they show up as planned. ---- #}
+    <div class="grid grid-cols-2 gap-3 mb-6">
+        <div class="bg-white border border-ink-900/10 rounded-xl p-4">
+            <p class="text-[10px] font-bold uppercase tracking-wide text-ink-500">Play rating</p>
+            <p class="scoreclock text-xl font-bold text-ink-900 mt-1">
+                {% if stats.average_rating %}★ {{ stats.average_rating }}{% else %}—{% endif %}
+            </p>
+            <p class="text-[11px] text-ink-500 mt-0.5">{{ stats.rating_count }} review{{ stats.rating_count|pluralize }}</p>
+        </div>
+        <div class="bg-white border border-ink-900/10 rounded-xl p-4">
+            <p class="text-[10px] font-bold uppercase tracking-wide text-ink-500">Attendance rating</p>
+            <p class="scoreclock text-xl font-bold text-ink-900 mt-1">
+                {% if stats.reliability_pct is not None %}{{ stats.reliability_pct }}%{% else %}—{% endif %}
+            </p>
+            <p class="text-[11px] text-ink-500 mt-0.5">Showed up as planned</p>
+        </div>
     </div>
-    {% endif %}
 
     <div class="bg-white border border-ink-900/10 rounded-xl p-4 mb-6 flex items-center justify-between gap-3">
         <div>

@@ -57,13 +57,8 @@
                             <div class="flex items-center justify-between gap-3 rounded-xl border border-ink-900/10 bg-chalk-100 px-4 py-3">
                                 <div>
                                     <p class="font-semibold text-sm text-ink-900">{{ req.player.first_name|default:req.player.username }}</p>
-                                    <p class="text-xs mt-0.5">
-                                        {% if req.player.profile.average_rating %}
-                                            <span class="font-bold text-floodlight-500">★ {{ req.player.profile.average_rating }}</span>
-                                            <span class="text-ink-500">({{ req.player.profile.rating_count }} rating{{ req.player.profile.rating_count|pluralize }})</span>
-                                        {% else %}
-                                            <span class="text-ink-500">No ratings yet</span>
-                                        {% endif %}
+                                    <p class="text-xs mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                        {% include 'core/_rating_summary.html' with profile=req.player.profile %}
                                     </p>
                                     {% if req.status == 'ACCEPTED' and req.player.profile.phone %}
                                         <p class="scoreclock text-xs text-pitch-600 mt-0.5">📞 {{ req.player.profile.phone }}</p>
@@ -111,11 +106,17 @@
                         {% elif user_request.status == 'REJECTED' %}
                             <p class="font-semibold text-rose-600">❌ The host declined this request.</p>
                         {% elif user_request.status == 'CANCELLED' %}
-                            <a href="{% url 'join_match' match.id %}" class="block w-full bg-pitch-900 hover:bg-pitch-700 text-chalk-50 font-bold text-sm py-3 rounded-xl text-center transition-colors">Re-apply to join</a>
+                            {% if already_started %}
+                                <button disabled class="block w-full bg-ink-900/10 text-ink-500 font-bold text-sm py-3 rounded-xl text-center cursor-not-allowed">Match already started</button>
+                            {% else %}
+                                <a href="{% url 'join_match' match.id %}" class="block w-full bg-pitch-900 hover:bg-pitch-700 text-chalk-50 font-bold text-sm py-3 rounded-xl text-center transition-colors">Re-apply to join</a>
+                            {% endif %}
                         {% endif %}
                     </div>
                 {% else %}
-                    {% if match.status == 'OPEN' %}
+                    {% if already_started %}
+                        <button disabled class="block w-full bg-ink-900/10 text-ink-500 font-bold text-sm py-3 rounded-xl text-center cursor-not-allowed">Match already started</button>
+                    {% elif match.status == 'OPEN' %}
                         <a href="{% url 'join_match' match.id %}" class="block w-full bg-floodlight-400 hover:bg-floodlight-500 text-pitch-950 font-bold text-sm py-3 rounded-xl text-center transition-colors">Request to join</a>
                     {% else %}
                         <button disabled class="block w-full bg-ink-900/10 text-ink-500 font-bold text-sm py-3 rounded-xl text-center cursor-not-allowed">Match {{ match.get_status_display|lower }}</button>
@@ -132,29 +133,34 @@
                             <div class="rounded-xl border border-ink-900/10 bg-chalk-100 p-4">
                                 <p class="font-semibold text-sm text-ink-900 mb-2">{{ entry.player.first_name|default:entry.player.username }}</p>
                                 {% if entry.existing_rating %}
-                                    <p class="text-sm text-pitch-600 font-medium">
-                                        You said they {% if entry.existing_rating.showed_up %}showed up{% else %}didn't show up{% endif %}
-                                        and rated them {{ entry.existing_rating.stars }}★.
-                                    </p>
+                                    {% if entry.existing_rating.showed_up %}
+                                        <p class="text-sm text-pitch-600 font-medium">
+                                            You said they showed up and rated their play {{ entry.existing_rating.stars }}★.
+                                        </p>
+                                    {% else %}
+                                        <p class="text-sm text-rose-600 font-medium">
+                                            You said they didn't show up — no play rating given.
+                                        </p>
+                                    {% endif %}
                                 {% else %}
                                     <form method="POST" action="{% url 'submit_rating' match.id %}" class="space-y-3 rating-form">
                                         {% csrf_token %}
                                         <input type="hidden" name="rated_user_id" value="{{ entry.player.id }}">
                                         <div class="flex gap-2">
                                             <label class="match-type-option flex-1">
-                                                <input type="radio" name="showed_up" value="on" checked class="peer sr-only">
+                                                <input type="radio" name="showed_up" value="on" checked class="peer sr-only showed-up-radio">
                                                 <div class="peer-checked:border-pitch-600 peer-checked:bg-pitch-600/10 border-2 border-ink-900/10 rounded-lg px-2.5 py-1.5 cursor-pointer transition-colors text-center font-bold text-xs text-ink-900">
                                                     ✅ Showed up
                                                 </div>
                                             </label>
                                             <label class="match-type-option flex-1">
-                                                <input type="radio" name="showed_up" value="" class="peer sr-only">
+                                                <input type="radio" name="showed_up" value="" class="peer sr-only showed-up-radio">
                                                 <div class="peer-checked:border-rose-500 peer-checked:bg-rose-500/10 border-2 border-ink-900/10 rounded-lg px-2.5 py-1.5 cursor-pointer transition-colors text-center font-bold text-xs text-ink-900">
                                                     ❌ Did not attend
                                                 </div>
                                             </label>
                                         </div>
-                                        <div>
+                                        <div class="star-picker-wrap">
                                             <input type="hidden" name="stars" class="stars-value" value="5">
                                             <div class="flex items-center gap-1 star-picker">
                                                 {% for i in "12345" %}
@@ -175,11 +181,17 @@
                 <div class="mt-6 pt-5 border-t border-ink-900/10">
                     <h4 class="font-display font-bold text-sm text-ink-900 mb-3">⭐ Rate the host</h4>
                     {% if existing_rating %}
-                        <p class="text-sm text-pitch-600 font-medium">
-                            You said {{ existing_rating.rated_user.first_name|default:existing_rating.rated_user.username }}
-                            {% if existing_rating.showed_up %}showed up{% else %}didn't show up{% endif %}
-                            and rated them {{ existing_rating.stars }}★.
-                        </p>
+                        {% if existing_rating.showed_up %}
+                            <p class="text-sm text-pitch-600 font-medium">
+                                You said {{ existing_rating.rated_user.first_name|default:existing_rating.rated_user.username }}
+                                showed up and rated their play {{ existing_rating.stars }}★.
+                            </p>
+                        {% else %}
+                            <p class="text-sm text-rose-600 font-medium">
+                                You said {{ existing_rating.rated_user.first_name|default:existing_rating.rated_user.username }}
+                                didn't show up — no play rating given.
+                            </p>
+                        {% endif %}
                     {% else %}
                         <form method="POST" action="{% url 'submit_rating' match.id %}" class="space-y-4 rating-form">
                             {% csrf_token %}
@@ -187,13 +199,13 @@
                                 <p class="text-xs font-bold uppercase tracking-wide text-ink-500 mb-2">Did they show up?</p>
                                 <div class="flex gap-2">
                                     <label class="match-type-option flex-1">
-                                        <input type="radio" name="showed_up" value="on" checked class="peer sr-only">
+                                        <input type="radio" name="showed_up" value="on" checked class="peer sr-only showed-up-radio">
                                         <div class="peer-checked:border-pitch-600 peer-checked:bg-pitch-600/10 border-2 border-ink-900/10 rounded-xl px-3 py-2 cursor-pointer transition-colors text-center font-bold text-sm text-ink-900">
                                             ✅ Showed up
                                         </div>
                                     </label>
                                     <label class="match-type-option flex-1">
-                                        <input type="radio" name="showed_up" value="" class="peer sr-only">
+                                        <input type="radio" name="showed_up" value="" class="peer sr-only showed-up-radio">
                                         <div class="peer-checked:border-rose-500 peer-checked:bg-rose-500/10 border-2 border-ink-900/10 rounded-xl px-3 py-2 cursor-pointer transition-colors text-center font-bold text-sm text-ink-900">
                                             ❌ Did not attend
                                         </div>
@@ -201,8 +213,8 @@
                                 </div>
                             </div>
 
-                            <div>
-                                <p class="text-xs font-bold uppercase tracking-wide text-ink-500 mb-2">Rate them</p>
+                            <div class="star-picker-wrap">
+                                <p class="text-xs font-bold uppercase tracking-wide text-ink-500 mb-2">Rate their play</p>
                                 <input type="hidden" name="stars" class="stars-value" value="5">
                                 <div class="flex items-center gap-1 star-picker">
                                     {% for i in "12345" %}
@@ -248,26 +260,66 @@
 <script>
   (function () {
     // A match can now show several independent rating forms at once (the
-    // host rating each accepted player), so each star-picker is wired up
-    // on its own — picking a star count in one form never touches another.
-    document.querySelectorAll('.star-picker').forEach(function (picker) {
+    // host rating each accepted player), so each star-picker is wired up,
+    // and locked/unlocked, on its own — nothing in one form touches another.
+    document.querySelectorAll('.rating-form').forEach(function (form) {
+      var picker = form.querySelector('.star-picker');
+      var pickerWrap = form.querySelector('.star-picker-wrap');
+      if (!picker) return;
+
       var buttons = picker.querySelectorAll('.star-btn');
-      var hiddenInput = picker.querySelector('.stars-value') || picker.parentElement.querySelector('.stars-value');
+      var hiddenInput = picker.querySelector('.stars-value') || (pickerWrap && pickerWrap.querySelector('.stars-value'));
       var label = picker.querySelector('.star-label');
+      var showedUpRadios = form.querySelectorAll('.showed-up-radio');
+
+      // The star a picker last held while marked "showed up" — restored if
+      // the host flips back from "did not attend" without losing their pick.
+      var lastPlayStars = 5;
+      var locked = false;
+
+      function paintStars(value) {
+        buttons.forEach(function (btn) {
+          var filled = parseInt(btn.dataset.value, 10) <= value;
+          btn.classList.toggle('text-floodlight-500', filled && !locked);
+          btn.classList.toggle('text-ink-900/15', !filled || locked);
+        });
+      }
 
       function setStars(value) {
         if (hiddenInput) hiddenInput.value = value;
         if (label) label.textContent = value + (value == 1 ? ' star' : ' stars');
-        buttons.forEach(function (btn) {
-          var filled = parseInt(btn.dataset.value, 10) <= value;
-          btn.classList.toggle('text-floodlight-500', filled);
-          btn.classList.toggle('text-ink-900/15', !filled);
-        });
+        paintStars(value);
+      }
+
+      function lockToZero() {
+        locked = true;
+        if (pickerWrap) pickerWrap.classList.add('opacity-40', 'pointer-events-none');
+        if (hiddenInput) hiddenInput.value = 0;
+        if (label) label.textContent = 'Not rated — no-show';
+        paintStars(0);
+      }
+
+      function unlock() {
+        locked = false;
+        if (pickerWrap) pickerWrap.classList.remove('opacity-40', 'pointer-events-none');
+        setStars(lastPlayStars);
       }
 
       buttons.forEach(function (btn) {
         btn.addEventListener('click', function () {
-          setStars(parseInt(btn.dataset.value, 10));
+          if (locked) return;
+          lastPlayStars = parseInt(btn.dataset.value, 10);
+          setStars(lastPlayStars);
+        });
+      });
+
+      showedUpRadios.forEach(function (radio) {
+        radio.addEventListener('change', function () {
+          if (radio.checked && radio.value === 'on') {
+            unlock();
+          } else if (radio.checked) {
+            lockToZero();
+          }
         });
       });
 

@@ -1,7 +1,8 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.db.models import Avg
+from django.db.models import Avg, Q
 
 
 class Turf(models.Model):
@@ -41,11 +42,17 @@ class Profile(models.Model):
         return self.user.first_name or self.user.username
 
     def average_rating(self):
-        avg = Rating.objects.filter(rated_user=self.user).aggregate(Avg('stars'))['stars__avg']
+        # Only ratings from matches the person actually showed up to count
+        # toward their play rating — a no-show carries a fixed 0 that isn't
+        # a judgment on how they played, so it's excluded here and reflected
+        # in reliability_pct() instead.
+        avg = Rating.objects.filter(
+            rated_user=self.user, showed_up=True
+        ).aggregate(Avg('stars'))['stars__avg']
         return round(avg, 1) if avg is not None else None
 
     def rating_count(self):
-        return Rating.objects.filter(rated_user=self.user).count()
+        return Rating.objects.filter(rated_user=self.user, showed_up=True).count()
 
     def reliability_pct(self):
         """% of rated appearances where the user actually showed up."""
@@ -153,8 +160,11 @@ class Rating(models.Model):
     rated_user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='received_ratings'
     )
+    # 0 is only valid when showed_up=False (a no-show can't be given a play
+    # rating); 1-5 is only valid when showed_up=True. See clean()/the check
+    # constraint below, which both enforce this pairing.
     stars = models.PositiveSmallIntegerField(
-        validators=[MinValueValidator(1), MaxValueValidator(5)]
+        validators=[MinValueValidator(0), MaxValueValidator(5)]
     )
     showed_up = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -163,10 +173,33 @@ class Rating(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=['match', 'rater', 'rated_user'], name='unique_match_rating'
-            )
+            ),
+            models.CheckConstraint(
+                check=(
+                    Q(showed_up=True, stars__gte=1, stars__lte=5)
+                    | Q(showed_up=False, stars=0)
+                ),
+                name='stars_zero_iff_no_show',
+            ),
         ]
 
+    def clean(self):
+        if self.showed_up and self.stars == 0:
+            raise ValidationError("Pick a 1-5 star rating for a player who showed up.")
+        if not self.showed_up and self.stars != 0:
+            raise ValidationError("A player who didn't show up can't be given a play rating.")
+
+    def save(self, *args, **kwargs):
+        # A no-show never carries a play rating, regardless of what a
+        # caller passes in — belt-and-braces alongside the check constraint.
+        if not self.showed_up:
+            self.stars = 0
+        self.full_clean()
+        super().save(*args, **kwargs)
+
     def __str__(self):
+        if not self.showed_up:
+            return f"{self.rater.username} rated {self.rated_user.username}: did not show up"
         return f"{self.rater.username} rated {self.rated_user.username}: {self.stars}★"
 
 

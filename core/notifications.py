@@ -43,7 +43,9 @@ def send_push_to_user(user, title, body, url='/', verb=None):
     """Push `title`/`body` to every device the user has subscribed on.
     Dead subscriptions (410/404 from the push service) are cleaned up.
     `verb` (a Notification.Verb value) rides along in the payload so the
-    client can play the matching whistle pattern for this event type.
+    service worker can tag/group the notification by event type. No sound
+    is chosen here — the OS/browser always plays its own default
+    notification sound for a push; SquadTurf never ships or selects one.
     """
     if not PUSH_AVAILABLE:
         return

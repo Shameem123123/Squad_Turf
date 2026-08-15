@@ -50,11 +50,10 @@ self.addEventListener('push', function (event) {
     Promise.all([
       self.registration.showNotification(data.title || 'SquadTurf', options),
       // Tell any open tabs a push landed so they can refresh their badge
-      // instantly instead of waiting for the next poll. push.js decides
-      // whether to *also* play a sound here — it only does when the tab is
-      // focused (the one case where the system's own notification sound
-      // above tends to get muted by the browser), so a push never ends up
-      // sounding twice.
+      // instantly instead of waiting for the next poll. No sound is played
+      // here or by any listening tab — showNotification() above already
+      // triggers the OS/browser's own default notification sound, and
+      // that's the only sound a SquadTurf push ever produces.
       self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
         clientList.forEach(function (client) {
           client.postMessage({ type: 'squadturf-push', title: data.title, body: data.body, url: data.url, verb: data.verb });

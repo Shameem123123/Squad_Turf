@@ -91,141 +91,18 @@
   }
 
   // ---- Notification sound -------------------------------------------------
-  // Deliberately ONE sound for every event type — matching a normal phone's
-  // "usual notification tone" instead of a distinct jingle per verb. This is
-  // only ever used as an in-page fallback for the moment a system push
-  // notification's own sound gets suppressed by the browser (see the
-  // hasFocus() guard around playNotificationSound() below); it is never
-  // meant to layer on top of the system sound, only substitute for it.
-  //
-  // If the bundled file is missing or fails to load, playNotificationSound()
-  // falls back to a single short tone synthesized live with the Web Audio
-  // API, so sound never breaks silently.
-
-  var DEFAULT_AUDIO_SRC = '/static/core/audio/default.wav';
-
-  // One <audio> element, created lazily and reused so repeated notifications
-  // don't re-fetch the file every time.
-  var defaultAudioEl = null;
-  function getAudioEl() {
-    if (!defaultAudioEl) {
-      defaultAudioEl = new Audio(DEFAULT_AUDIO_SRC);
-      defaultAudioEl.preload = 'auto';
-      defaultAudioEl.volume = 0.9;
-    }
-    return defaultAudioEl;
-  }
-
-  function playRealFile() {
-    return new Promise(function (resolve, reject) {
-      try {
-        var el = getAudioEl();
-        el.currentTime = 0;
-        var p = el.play();
-        if (p && p.then) {
-          p.then(resolve).catch(reject);
-        } else {
-          resolve();
-        }
-      } catch (e) {
-        reject(e);
-      }
-    });
-  }
-
-  var audioCtx = null;
-  function getCtx() {
-    var AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return null;
-    if (!audioCtx) {
-      try { audioCtx = new AC(); } catch (e) { return null; }
-    }
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume().catch(function () { /* needs a user gesture first — fine */ });
-    }
-    return audioCtx;
-  }
-
-  // A single short, neutral "blip" — the same tone every time, regardless
-  // of event type. This is a generic stand-in for a phone's default
-  // notification tone, not a distinct sound per verb.
-  function playTone(ctx, startTime) {
-    var duration = 0.16;
-    var stopAt = startTime + duration + 0.03;
-
-    var osc = ctx.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, startTime);
-
-    var gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.0001, startTime);
-    gain.gain.exponentialRampToValueAtTime(0.5, startTime + 0.012);
-    gain.gain.setValueAtTime(0.5, startTime + duration - 0.05);
-    gain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(startTime);
-    osc.stop(stopAt);
-  }
-
-  var fallbackAudio = null;
-  function playFallback() {
-    try {
-      if (!fallbackAudio) {
-        fallbackAudio = new Audio(DEFAULT_AUDIO_SRC);
-        fallbackAudio.volume = 0.85;
-      }
-      fallbackAudio.currentTime = 0;
-      var p = fallbackAudio.play();
-      if (p && p.catch) p.catch(function () { /* autoplay blocked until first gesture — fine */ });
-    } catch (e) { /* ignore */ }
-  }
-
-  function playSynthesized() {
-    var ctx = getCtx();
-    if (!ctx) {
-      playFallback();
-      return;
-    }
-    try {
-      playTone(ctx, ctx.currentTime + 0.015);
-    } catch (e) {
-      playFallback();
-    }
-  }
-
-  // Real audio file first (this is what picks up a manually swapped-in
-  // sound); if it's missing/blocked/fails, fall back to the live synth
-  // so a broken/missing file never means silence.
-  function playSound() {
-    playRealFile().catch(function () {
-      playSynthesized();
-    });
-  }
-
-  // ---- Avoiding the double-notification-sound bug ------------------------
-  // A system push notification (shown by the service worker) already plays
-  // the device's own "usual notification sound" on its own — that's the
-  // ONE sound a push should ever produce. The only gap is that most
-  // browsers mute/suppress that system sound while the tab that owns the
-  // page is focused in the foreground. So: only play this in-page sound
-  // when the tab is actually focused (i.e. the case the system sound would
-  // otherwise skip), and never in the background/closed-tab case where the
-  // system notification is already handling it — that combination is what
-  // used to cause two sounds to fire together.
-  //
-  // A short cooldown lock also guards against the push relay (below) and
-  // live.js's poller both reacting to the same underlying event and each
-  // trying to play a sound moments apart.
-  var lastPlayedAt = 0;
-  var SOUND_COOLDOWN_MS = 1500;
+  // SquadTurf no longer ships or plays any sound of its own — no bundled
+  // audio files, no synthesized tone, nothing. Every push notification is
+  // shown by the service worker via the standard Notification API (see
+  // sw.js), and that's what triggers the device's own, user-configured
+  // "default notification sound" — the same sound every other app on the
+  // phone uses. This function is kept as a no-op (rather than deleted) so
+  // sw.js/live.js don't need to special-case whether it exists; it simply
+  // never produces sound of its own.
   function playNotificationSound() {
-    if (!document.hasFocus() || document.hidden) return;
-    var now = Date.now();
-    if (now - lastPlayedAt < SOUND_COOLDOWN_MS) return;
-    lastPlayedAt = now;
-    playSound();
+    // Intentionally does nothing — the OS/browser's own notification sound
+    // (triggered by showNotification() in sw.js) is the only sound a
+    // SquadTurf push ever makes.
   }
 
   if ('serviceWorker' in navigator) {

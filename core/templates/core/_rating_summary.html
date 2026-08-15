@@ -1,0 +1,18 @@
+{# Compact play-rating + attendance-rating pair, used anywhere a player's
+   or host's track record is shown. Two distinct badges rather than one
+   blended number, since "plays well" and "shows up" are different things
+   a host is deciding on. #}
+{% if profile.rating_count %}
+    <span class="inline-flex items-center gap-1 rounded-md bg-floodlight-400/10 px-1.5 py-0.5 text-xs font-bold text-floodlight-600"
+          title="Average play rating from past matches">
+        ★ {{ profile.average_rating }}<span class="font-medium text-ink-500 ml-0.5">Play</span>
+    </span>
+    {% if profile.reliability_pct is not None %}
+        <span class="inline-flex items-center gap-1 rounded-md bg-pitch-600/10 px-1.5 py-0.5 text-xs font-bold text-pitch-700"
+              title="Share of past matches they showed up to as planned">
+            {{ profile.reliability_pct }}%<span class="font-medium text-ink-500 ml-0.5">Attendance</span>
+        </span>
+    {% endif %}
+{% else %}
+    <span class="text-xs text-ink-500">No ratings yet</span>
+{% endif %}

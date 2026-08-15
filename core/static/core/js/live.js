@@ -16,14 +16,9 @@
 
   function updateBadge(count) {
     var badge = document.getElementById('notif-badge');
-    // A fresh, higher unread count means something new landed while this
-    // tab was open — give it the same single notification sound a push
-    // would get (playNotificationSound has its own focus check + cooldown,
-    // so this never doubles up with a push that already made a sound for
-    // the same event).
-    if (lastUnread !== null && count > lastUnread && window.SquadTurfPush) {
-      window.SquadTurfPush.playNotificationSound();
-    }
+    // No sound is played here — SquadTurf doesn't play any sound of its
+    // own; the only notification sound a user ever hears is their phone's
+    // own default, triggered by the system push in sw.js.
     lastUnread = count;
     [badge, document.getElementById('notif-badge-mobile')].forEach(function (el) {
       if (!el) return;

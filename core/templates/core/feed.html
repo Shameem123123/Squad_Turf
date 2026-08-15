@@ -74,14 +74,14 @@
                     <div class="min-w-0">
                         <p class="font-semibold text-sm text-ink-900 truncate">
                             {{ notif.player.first_name|default:notif.player.username }}
-                            {% if notif.player.profile.average_rating %}
-                                <span class="text-xs font-bold text-floodlight-500 ml-1">★ {{ notif.player.profile.average_rating }}</span>
-                            {% endif %}
                             {% if notif.status == 'ACCEPTED' and notif.player.profile.phone %}
                                 <span class="scoreclock text-xs text-pitch-600 ml-1.5">📞 {{ notif.player.profile.phone }}</span>
                             {% endif %}
                         </p>
                         <p class="text-xs text-ink-500 mt-0.5">{{ notif.match.turf.name }} &middot; {{ notif.match.match_time|date:"h:i A" }}</p>
+                        <p class="mt-1 flex items-center gap-1.5 flex-wrap">
+                            {% include 'core/_rating_summary.html' with profile=notif.player.profile %}
+                        </p>
                     </div>
                     <div class="shrink-0 flex items-center gap-2">
                         {% if notif.status == 'PENDING' %}

@@ -392,6 +392,10 @@ def match_detail(request, match_id):
     match = get_object_or_404(Match.objects.select_related('turf', 'host', 'host__profile'), id=match_id)
     is_host = request.user.is_authenticated and request.user == match.host
     is_past = match.match_time < (timezone.now() - PAST_CUTOFF)
+    # Joining closes right at kickoff — a stricter, immediate cutoff than
+    # is_past (which has an hour's grace before ratings/etc. unlock), so a
+    # "Request to join" button never lingers for a match already underway.
+    already_started = match.match_time < timezone.now()
 
     join_requests = None
     user_request = None
@@ -434,6 +438,7 @@ def match_detail(request, match_id):
         'join_requests': join_requests,
         'user_request': user_request,
         'is_past': is_past,
+        'already_started': already_started,
         'is_accepted_player': is_accepted_player,
         'existing_rating': existing_rating,
         'rateable_players': rateable_players,
@@ -448,6 +453,10 @@ def join_match(request, match_id):
 
     if match.host_id == request.user.id:
         messages.error(request, "You can't request to join your own match.")
+        return redirect('match_detail', match_id=match.id)
+
+    if match.match_time < timezone.now():
+        messages.error(request, "This match has already started, so it's no longer accepting new players.")
         return redirect('match_detail', match_id=match.id)
 
     if match.status != Match.Status.OPEN:
@@ -607,8 +616,19 @@ def submit_rating(request, match_id):
     match = get_object_or_404(Match, id=match_id)
 
     if request.method == 'POST':
-        stars = max(1, min(5, int(request.POST.get('stars', 5))))
         showed_up = request.POST.get('showed_up') == 'on'
+        if showed_up:
+            # A play rating is required when the player showed up — 1-5,
+            # defaulting to 5 if the form somehow submitted without one.
+            try:
+                stars = int(request.POST.get('stars', 5))
+            except (TypeError, ValueError):
+                stars = 5
+            stars = max(1, min(5, stars))
+        else:
+            # A no-show never carries a play rating — always 0, regardless
+            # of whatever the (disabled, in this case) star picker held.
+            stars = 0
 
         rated_user = None
         if request.user.id == match.host_id:
