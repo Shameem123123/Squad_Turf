@@ -10,3 +10,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }, 5000 + i * 400);
   });
 });
+
+// iOS Safari only applies :active styles when a touch listener exists on the
+// page — registering a no-op passive listener gives instant press feedback.
+document.addEventListener('touchstart', function () {}, { passive: true });
