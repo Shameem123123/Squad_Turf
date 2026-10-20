@@ -8,9 +8,8 @@ from .models import Match, Turf
 PHONE_RE = re.compile(r'^[6-9]\d{9}$')
 
 INPUT_CLASSES = (
-    'w-full rounded-xl border border-ink-900/15 px-3.5 py-2.5 text-sm text-ink-900 '
-    'placeholder:text-ink-500/60 focus:border-pitch-600 focus:ring-2 focus:ring-pitch-600/20 '
-    'transition-shadow bg-white'
+    'w-full rounded-xl px-4 py-3 text-base text-ink-900 '
+    'placeholder:text-ink-500/60 transition-shadow bg-white'
 )
 
 
