@@ -3,26 +3,28 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>{% block title %}SquadTurf — Fill Your Squad, Fast{% endblock %}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = {
     theme: {
       extend: {
         colors: {
-          pitch: { 950: '#08251C', 900: '#0B3D2E', 700: '#116041', 600: '#16794F', 500: '#1E9660' },
-          chalk: { 50: '#FBFAF6', 100: '#F4F7F1', 200: '#EAEFE4' },
-          floodlight: { 400: '#FFD23F', 500: '#F5B700' },
-          rose: { 500: '#E23B4D', 600: '#C62A3C' },
-          ink: { 900: '#0B1F17', 700: '#31463C', 500: '#5C7166' },
+          // Apple-style system palette. Token names are kept so every template re-themes without logic edits.
+          pitch: { 950: '#000000', 900: '#1D1D1F', 700: '#2C2C2E', 600: '#248A3D', 500: '#34C759' },
+          chalk: { 50: '#FFFFFF', 100: '#F5F5F7', 200: '#E8E8ED' },
+          floodlight: { 400: '#FFD60A', 500: '#E08600', 600: '#B86E00' },
+          rose: { 500: '#FF3B30', 600: '#D70015', 700: '#B00012' },
+          sky: { 500: '#0A84FF', 600: '#0071E3', 700: '#0058B0' },
+          ink: { 900: '#1D1D1F', 700: '#424245', 500: '#6E6E73' },
         },
         fontFamily: {
-          display: ['"Space Grotesk"', 'sans-serif'],
-          body: ['Inter', 'sans-serif'],
-          mono: ['"JetBrains Mono"', 'monospace'],
+          display: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', 'Inter', 'system-ui', 'sans-serif'],
+          body: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Text"', 'Inter', 'system-ui', 'sans-serif'],
+          mono: ['ui-monospace', '"SF Mono"', 'Menlo', 'monospace'],
         },
       }
     }
@@ -30,7 +32,7 @@
 </script>
 <link rel="stylesheet" href="{% static 'core/css/custom.css' %}">
 <link rel="manifest" href="{% static 'core/manifest.webmanifest' %}">
-<meta name="theme-color" content="#0B3D2E">
+<meta name="theme-color" content="#F5F5F7">
 <link rel="icon" href="{% static 'core/img/icon-192.png' %}">
 <link rel="apple-touch-icon" href="{% static 'core/img/icon-192.png' %}">
 </head>
@@ -38,17 +40,17 @@
       {% if user.is_authenticated %}data-live-sig="{{ live_sig }}"{% endif %}>
 {% csrf_token %}{# ensures the csrftoken cookie exists for push.js's / live.js's fetch calls #}
 
-<nav class="sticky top-0 z-50 bg-pitch-900 border-b-2 border-floodlight-400/70">
+<nav class="sticky top-0 z-50 glass-bar glass-bar-top">
     <div class="max-w-5xl mx-auto px-3 sm:px-6 py-[13px] sm:py-3 flex items-center justify-between gap-2 sm:gap-3">
         <a href="{% url 'feed' %}" class="flex items-center gap-2 group shrink-0">
             {# ---- SquadTurf logo mark: same design on desktop and mobile, constant slow "scanning" sweep behind it ---- #}
             <span class="flex relative h-7 w-7 sm:h-8 sm:w-8 items-center justify-center shrink-0">
                 <span class="logo-scan-ring absolute inline-flex h-full w-full rounded-full"></span>
                 <svg class="logo-mark relative h-full w-full" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="24" cy="24" r="19" fill="none" stroke="#FFD23F" stroke-width="2.4"/>
-                    <circle cx="24" cy="24" r="14" fill="#FBFAF6"/>
-                    <path d="M24 18 29.71 22.15 27.53 28.85 20.47 28.85 18.29 22.15Z" fill="#0B3D2E"/>
-                    <g stroke="#0B3D2E" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" fill="none">
+                    <circle cx="24" cy="24" r="19" fill="none" stroke="#34C759" stroke-width="2.4"/>
+                    <circle cx="24" cy="24" r="14" fill="#1D1D1F"/>
+                    <path d="M24 18 29.71 22.15 27.53 28.85 20.47 28.85 18.29 22.15Z" fill="#FFFFFF"/>
+                    <g stroke="#FFFFFF" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" fill="none">
                         <path d="M24 18 24 11"/>
                         <path d="M29.71 22.15 36.37 19.98"/>
                         <path d="M27.53 28.85 31.64 34.51"/>
@@ -63,13 +65,13 @@
                     </g>
                 </svg>
             </span>
-            <span class="font-display font-bold text-base sm:text-lg text-chalk-50 tracking-tight inline">SquadTurf</span>
+            <span class="font-display font-bold text-base sm:text-lg text-ink-900 tracking-tight inline">SquadTurf</span>
         </a>
 
         <div class="flex items-center gap-1 sm:gap-2 justify-end">
             {% if user.is_authenticated %}
                 {# ---- Mobile-only header icons: notification bell (right) + profile/menu (rightmost) ---- #}
-                <a href="{% url 'notification_list' %}" class="sm:hidden relative flex items-center justify-center h-9 w-9 rounded-lg text-chalk-50 hover:bg-white/10 active:scale-95 transition-all" aria-label="Notifications">
+                <a href="{% url 'notification_list' %}" class="sm:hidden relative flex items-center justify-center h-9 w-9 rounded-full text-ink-900 hover:bg-ink-900/5 active:scale-95 transition-all" aria-label="Notifications">
                     <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
                         <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
@@ -78,38 +80,38 @@
                 </a>
                 {# ---- Mobile-only header profile icon: goes straight to the profile page (not a menu). The bottom-tab "Menu" button still opens the full mobile menu panel, untouched. ---- #}
                 <a href="{% url 'profile' %}"
-                   class="sm:hidden flex items-center justify-center h-9 w-9 rounded-full bg-pitch-600 text-chalk-50 font-display font-bold text-xs active:scale-95 transition-transform" aria-label="Profile">
+                   class="sm:hidden flex items-center justify-center h-9 w-9 rounded-full bg-pitch-900 text-white font-display font-bold text-xs active:scale-95 transition-transform" aria-label="Profile">
                     {{ user.profile.initials }}
                 </a>
 
                 {# ---- Desktop-only text links; mobile gets these as bottom tabs instead ---- #}
-                <a href="{% url 'feed' %}" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-chalk-100/90 hover:text-floodlight-400 transition-colors px-2">
+                <a href="{% url 'feed' %}" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-ink-700 hover:text-ink-900 transition-colors px-2">
                     Home
                 </a>
-                <a href="{% url 'my_hosted' %}" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-chalk-100/90 hover:text-floodlight-400 transition-colors px-2">
+                <a href="{% url 'my_hosted' %}" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-ink-700 hover:text-ink-900 transition-colors px-2">
                     Hosted
                 </a>
-                <a href="{% url 'my_joined' %}" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-chalk-100/90 hover:text-floodlight-400 transition-colors px-2">
+                <a href="{% url 'my_joined' %}" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-ink-700 hover:text-ink-900 transition-colors px-2">
                     Requested
                 </a>
 
-                <a href="{% url 'notification_list' %}" class="hidden sm:inline-flex relative items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-lg hover:bg-white/10 transition-colors" aria-label="Notifications">
-                    <span class="text-base sm:text-lg" id="notif-bell">🔔</span>
+                <a href="{% url 'notification_list' %}" class="hidden sm:inline-flex relative items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full hover:bg-ink-900/5 transition-colors" aria-label="Notifications">
+                    <svg id="notif-bell" class="h-[18px] w-[18px] text-ink-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                     <span id="notif-badge" class="absolute -top-0.5 -right-0.5 flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold {% if not unread_notification_count %}hidden{% endif %}">{{ unread_notification_count }}</span>
                 </a>
 
-                <a href="{% url 'create_match' %}" class="hidden sm:inline-flex items-center gap-1.5 bg-floodlight-400 hover:bg-floodlight-500 text-pitch-950 font-bold text-sm px-3.5 py-2 rounded-lg transition-colors shadow-sm">
+                <a href="{% url 'create_match' %}" class="hidden sm:inline-flex items-center gap-1.5 btn-primary font-semibold text-sm px-4 py-2 rounded-full">
                     + Host
                 </a>
 
                 {# ---- Profile circle: round, initials only (no photo). Turfs + Profile + logout live in its dropdown ---- #}
                 <div class="relative" id="profile-menu-wrap">
                     <button id="profile-menu-btn" type="button" aria-haspopup="true" aria-expanded="false"
-                            class="hidden sm:flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-pitch-600 text-chalk-50 font-display font-bold text-xs hover:ring-2 hover:ring-floodlight-400/60 transition-shadow">
+                            class="hidden sm:flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-pitch-900 text-white font-display font-bold text-xs hover:opacity-85 transition-opacity">
                         {{ user.profile.initials }}
                     </button>
-                    <div id="profile-menu" class="hidden fixed inset-x-3 bottom-20 sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:mt-2 sm:w-48 w-auto bg-white rounded-xl shadow-lg border border-ink-900/10 py-1.5 z-50">
-                        <p class="px-3.5 py-2 text-xs font-semibold text-ink-500 truncate border-b border-ink-900/10">{{ user.profile.display_name }}</p>
+                    <div id="profile-menu" class="hidden fixed inset-x-3 bottom-20 sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:mt-2 sm:w-48 w-auto glass-menu rounded-2xl py-1.5 z-50">
+                        <p class="px-3.5 py-2 text-xs font-semibold text-ink-500 truncate menu-sep-b">{{ user.profile.display_name }}</p>
                         <a href="{% url 'profile' %}" class="flex items-center gap-2.5 px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">
                             <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
                             Profile
@@ -120,12 +122,12 @@
                         </a>
                         <a href="{% url 'create_match' %}" class="sm:hidden block px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">+ Host a match</a>
                         <a href="{% url 'notification_list' %}" class="sm:hidden block px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">Notifications</a>
-                        <a href="{% url 'logout' %}" class="block px-3.5 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-500/5 border-t border-ink-900/10 mt-1">Log out</a>
+                        <a href="{% url 'logout' %}" class="block px-3.5 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-500/5 menu-sep-t mt-1">Log out</a>
                     </div>
                 </div>
             {% else %}
-                <a href="{% url 'login' %}" class="text-sm font-semibold text-chalk-100/90 hover:text-floodlight-400 transition-colors">Log in</a>
-                <a href="{% url 'signup' %}" class="inline-flex items-center gap-1.5 bg-floodlight-400 hover:bg-floodlight-500 text-pitch-950 font-bold text-sm px-3.5 py-2 rounded-lg transition-colors shadow-sm">
+                <a href="{% url 'login' %}" class="text-sm font-semibold text-ink-700 hover:text-ink-900 transition-colors">Log in</a>
+                <a href="{% url 'signup' %}" class="inline-flex items-center gap-1.5 btn-primary font-semibold text-sm px-4 py-2 rounded-full">
                     Sign up
                 </a>
             {% endif %}
@@ -135,41 +137,41 @@
 
 {% if user.is_authenticated %}
 {# ---- Mobile-only bottom tab bar: Home / Matches / Requested / Profile ---- #}
-<nav id="mobile-tab-bar" class="sm:hidden fixed bottom-0 inset-x-0 z-50 bg-pitch-900 border-t-2 border-floodlight-400/70 pb-[env(safe-area-inset-bottom)]">
+<nav id="mobile-tab-bar" class="sm:hidden fixed bottom-0 inset-x-0 z-50 glass-bar glass-bar-bottom pb-[env(safe-area-inset-bottom)]">
     <div class="grid grid-cols-4">
         <a href="{% url 'feed' %}" class="tab-item flex flex-col items-center justify-center gap-0.5 py-2.5 {% if request.resolver_match.url_name == 'feed' %}tab-active{% endif %}">
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M3 11.5 12 4l9 7.5"/>
                 <path d="M5.5 10v9a1 1 0 0 0 1 1H9.5v-5.5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V20h3a1 1 0 0 0 1-1v-9"/>
             </svg>
-            <span class="text-[10px] font-bold tracking-wide">Home</span>
+            <span class="text-[10px] font-medium tracking-[0.01em]">Home</span>
         </a>
         <a href="{% url 'my_hosted' %}" class="tab-item flex flex-col items-center justify-center gap-0.5 py-2.5 {% if request.resolver_match.url_name == 'my_hosted' %}tab-active{% endif %}">
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="4.5" y="3.5" width="15" height="17" rx="2"/>
                 <path d="M8.5 8h7M8.5 12h7M8.5 16h4"/>
             </svg>
-            <span class="text-[10px] font-bold tracking-wide">Matches</span>
+            <span class="text-[10px] font-medium tracking-[0.01em]">Matches</span>
         </a>
         <a href="{% url 'my_joined' %}" class="tab-item flex flex-col items-center justify-center gap-0.5 py-2.5 {% if request.resolver_match.url_name == 'my_joined' %}tab-active{% endif %}">
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M4 12h4l1.5 3h5L16 12h4"/>
                 <path d="M4 12 6 5.5A1.5 1.5 0 0 1 7.4 4.5h9.2A1.5 1.5 0 0 1 18 5.5L20 12v6a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18v-6Z"/>
             </svg>
-            <span class="text-[10px] font-bold tracking-wide">Requested</span>
+            <span class="text-[10px] font-medium tracking-[0.01em]">Requested</span>
         </a>
         <button type="button" id="mobile-tab-menu-btn" aria-haspopup="true" aria-expanded="false" class="tab-item flex flex-col items-center justify-center gap-0.5 py-2.5 relative">
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M4 7h16M4 12h16M4 17h16"/>
             </svg>
-            <span class="text-[10px] font-bold tracking-wide">Menu</span>
+            <span class="text-[10px] font-medium tracking-[0.01em]">Menu</span>
         </button>
     </div>
 </nav>
 
 {# ---- Mobile-only menu panel: Profile / Turfs / Notifications / Logout. Opened from either the header profile icon or the bottom-tab Menu button. Entirely separate from the desktop profile dropdown above. ---- #}
-<div id="mobile-menu-panel" class="hidden sm:hidden fixed inset-x-3 bottom-20 z-50 bg-white rounded-xl shadow-lg border border-ink-900/10 py-1.5">
-    <p class="px-3.5 py-2 text-xs font-semibold text-ink-500 truncate border-b border-ink-900/10">{{ user.profile.display_name }}</p>
+<div id="mobile-menu-panel" class="hidden sm:hidden fixed inset-x-3 bottom-20 z-50 glass-menu rounded-2xl py-1.5">
+    <p class="px-3.5 py-2 text-xs font-semibold text-ink-500 truncate menu-sep-b">{{ user.profile.display_name }}</p>
     <a href="{% url 'profile' %}" class="flex items-center gap-2.5 px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">
         <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
         Profile
@@ -182,7 +184,7 @@
         <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
         Notifications
     </a>
-    <a href="{% url 'logout' %}" class="flex items-center gap-2.5 px-3.5 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-500/5 border-t border-ink-900/10 mt-1">
+    <a href="{% url 'logout' %}" class="flex items-center gap-2.5 px-3.5 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-500/5 menu-sep-t mt-1">
         <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5.5A1.5 1.5 0 0 1 4 19.5v-15A1.5 1.5 0 0 1 5.5 3H9"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
         Log out
     </a>
@@ -190,7 +192,7 @@
 {% endif %}
 
 {% if user.is_authenticated and not has_push_subscription %}
-<div id="push-banner" class="bg-floodlight-400/15 border-b border-floodlight-400/40">
+<div id="push-banner" class="push-banner">
     <div class="max-w-5xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3">
         <p class="text-xs sm:text-sm font-medium text-ink-900">🔔 Turn on notifications so you don't miss a join request — even when SquadTurf isn't open.</p>
         <div class="flex items-center gap-3 shrink-0">
@@ -205,7 +207,7 @@
         {% if messages %}
             <div id="toast-stack" class="space-y-2 mb-6">
                 {% for message in messages %}
-                    <div class="toast flex items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm font-medium
+                    <div class="toast flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm font-medium
                         {% if message.tags == 'error' %} bg-rose-500/10 border-rose-500/30 text-rose-600
                         {% elif message.tags == 'success' %} bg-pitch-600/10 border-pitch-600/30 text-pitch-700
                         {% else %} bg-sky-500/10 border-sky-500/30 text-sky-700 {% endif %}">
@@ -220,7 +222,7 @@
     </div>
 </main>
 
-<footer class="border-t border-ink-900/10 py-6 text-center">
+<footer class="border-t border-ink-900/10 py-8 text-center">
     <p class="text-xs text-ink-500 font-medium">SquadTurf &middot; Fill your squad, fast.</p>
 </footer>
 
