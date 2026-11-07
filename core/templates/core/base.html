@@ -31,6 +31,7 @@
   }
 </script>
 <link rel="stylesheet" href="{% static 'core/css/custom.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/booking.css' %}">
 <link rel="manifest" href="{% static 'core/manifest.webmanifest' %}">
 <meta name="theme-color" content="#F5F5F7">
 <link rel="icon" href="{% static 'core/img/icon-192.png' %}">
@@ -85,9 +86,15 @@
                 </a>
 
                 {# ---- Desktop-only text links; mobile gets these as bottom tabs instead ---- #}
+{% if is_turf_admin %}
+                <a href="{% url 'manage_home' %}" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-ink-700 hover:text-ink-900 transition-colors px-2">Schedule</a>
+                <a href="{% url 'manage_bookings' managed_turfs.0.slug %}" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-ink-700 hover:text-ink-900 transition-colors px-2">Bookings</a>
+                <a href="{% url 'manage_settings' managed_turfs.0.slug %}" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-ink-700 hover:text-ink-900 transition-colors px-2">Settings</a>
+{% else %}
                 <a href="{% url 'feed' %}" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-ink-700 hover:text-ink-900 transition-colors px-2">
                     Home
                 </a>
+                <a href="{% url 'book_directory' %}" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-ink-700 hover:text-ink-900 transition-colors px-2">Book</a>
                 <a href="{% url 'my_hosted' %}" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-ink-700 hover:text-ink-900 transition-colors px-2">
                     Hosted
                 </a>
@@ -95,14 +102,18 @@
                     Requested
                 </a>
 
+{% endif %}
+
                 <a href="{% url 'notification_list' %}" class="hidden sm:inline-flex relative items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full hover:bg-ink-900/5 transition-colors" aria-label="Notifications">
                     <svg id="notif-bell" class="h-[18px] w-[18px] text-ink-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                     <span id="notif-badge" class="absolute -top-0.5 -right-0.5 flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold {% if not unread_notification_count %}hidden{% endif %}">{{ unread_notification_count }}</span>
                 </a>
 
+                {% if not is_turf_admin %}
                 <a href="{% url 'create_match' %}" class="hidden sm:inline-flex items-center gap-1.5 btn-primary font-semibold text-sm px-4 py-2 rounded-full">
                     + Host
                 </a>
+                {% endif %}
 
                 {# ---- Profile circle: round, initials only (no photo). Turfs + Profile + logout live in its dropdown ---- #}
                 <div class="relative" id="profile-menu-wrap">
@@ -116,7 +127,14 @@
                             <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
                             Profile
                         </a>
-                        <a href="{% url 'turf_directory' %}" class="flex items-center gap-2.5 px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">
+                        {% if is_turf_admin %}<a href="{% url 'manage_home' %}" class="flex items-center gap-2.5 px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">
+        <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+        Turf console
+    </a>{% else %}<a href="{% url 'my_bookings' %}" class="flex items-center gap-2.5 px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">
+        <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="m9.5 15 2 2 3.5-3.5"/></svg>
+        My bookings
+    </a>{% endif %}
+    <a href="{% url 'turf_directory' %}" class="flex items-center gap-2.5 px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">
                             <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.3"/></svg>
                             Turfs
                         </a>
@@ -138,13 +156,31 @@
 {% if user.is_authenticated %}
 {# ---- Mobile-only bottom tab bar: Home / Matches / Requested / Profile ---- #}
 <nav id="mobile-tab-bar" class="sm:hidden fixed bottom-0 inset-x-0 z-50 glass-bar glass-bar-bottom pb-[env(safe-area-inset-bottom)]">
-    <div class="grid grid-cols-4">
+    <div class="grid {% if is_turf_admin %}grid-cols-4{% else %}grid-cols-5{% endif %}">
+{% if is_turf_admin %}
+        <a href="{% url 'manage_schedule' managed_turfs.0.slug %}" class="tab-item flex flex-col items-center justify-center gap-0.5 py-2.5 {% if request.resolver_match.url_name == 'manage_schedule' %}tab-active{% endif %}">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+            <span class="text-[10px] font-medium tracking-[0.01em]">Schedule</span>
+        </a>
+        <a href="{% url 'manage_bookings' managed_turfs.0.slug %}" class="tab-item flex flex-col items-center justify-center gap-0.5 py-2.5 {% if request.resolver_match.url_name == 'manage_bookings' %}tab-active{% endif %}">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+            <span class="text-[10px] font-medium tracking-[0.01em]">Bookings</span>
+        </a>
+        <a href="{% url 'manage_settings' managed_turfs.0.slug %}" class="tab-item flex flex-col items-center justify-center gap-0.5 py-2.5 {% if request.resolver_match.url_name == 'manage_settings' %}tab-active{% endif %}">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></svg>
+            <span class="text-[10px] font-medium tracking-[0.01em]">Settings</span>
+        </a>
+{% else %}
         <a href="{% url 'feed' %}" class="tab-item flex flex-col items-center justify-center gap-0.5 py-2.5 {% if request.resolver_match.url_name == 'feed' %}tab-active{% endif %}">
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M3 11.5 12 4l9 7.5"/>
                 <path d="M5.5 10v9a1 1 0 0 0 1 1H9.5v-5.5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V20h3a1 1 0 0 0 1-1v-9"/>
             </svg>
             <span class="text-[10px] font-medium tracking-[0.01em]">Home</span>
+        </a>
+        <a href="{% url 'book_directory' %}" class="tab-item flex flex-col items-center justify-center gap-0.5 py-2.5 {% if request.resolver_match.url_name == 'book_directory' %}tab-active{% endif %}">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="m9.5 15 2 2 3.5-3.5"/></svg>
+            <span class="text-[10px] font-medium tracking-[0.01em]">Book</span>
         </a>
         <a href="{% url 'my_hosted' %}" class="tab-item flex flex-col items-center justify-center gap-0.5 py-2.5 {% if request.resolver_match.url_name == 'my_hosted' %}tab-active{% endif %}">
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -160,6 +196,7 @@
             </svg>
             <span class="text-[10px] font-medium tracking-[0.01em]">Requested</span>
         </a>
+        {% endif %}
         <button type="button" id="mobile-tab-menu-btn" aria-haspopup="true" aria-expanded="false" class="tab-item flex flex-col items-center justify-center gap-0.5 py-2.5 relative">
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M4 7h16M4 12h16M4 17h16"/>
@@ -176,6 +213,13 @@
         <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
         Profile
     </a>
+    {% if is_turf_admin %}<a href="{% url 'manage_home' %}" class="flex items-center gap-2.5 px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">
+        <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+        Turf console
+    </a>{% else %}<a href="{% url 'my_bookings' %}" class="flex items-center gap-2.5 px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">
+        <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="m9.5 15 2 2 3.5-3.5"/></svg>
+        My bookings
+    </a>{% endif %}
     <a href="{% url 'turf_directory' %}" class="flex items-center gap-2.5 px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-chalk-100">
         <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.3"/></svg>
         Turfs

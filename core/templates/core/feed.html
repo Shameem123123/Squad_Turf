@@ -1,4 +1,5 @@
 {% extends 'core/base.html' %}
+{% load booking_tags %}
 
 {% block content %}
 
@@ -56,6 +57,10 @@
         {% endif %}
     </div>
 </section>
+
+{# ---- Book a turf: only renders when at least one turf has booking switched on ---- #}
+{% bookable_strip %}
+
 
 {# ---- Everything inside live-region auto-refreshes via live.js polling, ---- #}
 {# ---- so new matches / join requests / responses show up without a manual reload. #}

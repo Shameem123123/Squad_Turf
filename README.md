@@ -227,3 +227,42 @@ inside that window is automatically posted as Urgent instead.
 **Header** — condensed to Home / Hosted / Requested / bell / profile circle
 (initials only — logout lives inside that dropdown) + a "≡" overflow menu
 for Turfs, to stop the header overflowing on mobile.
+
+
+---
+
+## 🏟️ Turf slot booking (BookMyShow-style)
+
+Players can book real time slots at turfs; turf owners get their own console. It is purely additive — matches, join requests, ratings and notifications work exactly as before.
+
+### How it goes live (all manual, by you)
+1. **Add the turf** in `/admin/` → *Turfs*. Fill in *Listing details*, *Booking setup* (hours, slot length, limits) and *Pricing*.
+2. **Create the turf admin account** → *Turf admin accounts → Add* (or the button on the turf's page). Enter the turf, the contact's name, a **login phone number** and a password; share these with the turf yourself. There is no self-signup for this role, and a number that already belongs to a player can't be reused.
+3. **Tick "Booking enabled"** on the turf. Only now does it appear under **Book** for players.
+
+> Fast try-out: `python manage.py migrate && python manage.py seed_booking_demo --manager` enables booking on the sample turfs and prints a demo turf-admin login. Delete that account before going live.
+
+### Two account types
+| | Player | Turf admin |
+|---|---|---|
+| Created by | Sign-up | You, in `/admin/` |
+| Lands on | Feed | `/manage/` console |
+| Can | Browse, book, cancel (within window), host/join matches | See live schedule, add walk-ins, block slots / close a day, cancel bookings, mark paid, edit price & details, pause bookings |
+
+### Player flow
+`/book/` → pick a turf → pick a date → tap slots (tap the next slot to extend, up to the turf's limit) → confirm → ticket with reference, calendar file, directions, share, and "find players for this game" (hands off to your existing host-a-match flow). Availability is **live**: the grid refreshes every few seconds, and a slot someone else just took is released from your selection with a heads-up. Payment is **pay at the turf** for now; the turf admin marks bookings paid.
+
+### Rules enforced by the server
+* A slot can never be double-booked — checked in a locked transaction **and** by a database unique constraint.
+* Slots only within opening hours, inside the advance window, and not already started.
+* Free cancellation until *N* hours before the start (per turf); after that the player is pointed to call the turf.
+* Max 6 upcoming online bookings per player (anti-hoarding).
+* Opening hours / slot length can't be changed while upcoming bookings exist.
+
+### Reminders (optional, same pattern as match reminders)
+```
+*/5 * * * * cd /path/to/squadturf && python manage.py send_booking_reminders
+```
+
+### Tests
+`python manage.py test core.tests_bookings`

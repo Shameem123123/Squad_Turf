@@ -1,0 +1,42 @@
+{% extends 'core/base.html' %}
+{% load booking_tags %}
+{% block title %}Book a turf — SquadTurf{% endblock %}
+{% block content %}
+<div class="bk">
+  <p class="bk-eyebrow">Book</p>
+  <h1 class="bk-title">Find your pitch.</h1>
+  <p class="bk-sub">Live availability. Pick a slot, lock it in, and bring the squad.</p>
+
+  <form class="bk-search" method="get" role="search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input type="search" name="q" value="{{ q }}" placeholder="Search turfs or areas" aria-label="Search turfs" enterkeyhint="search">
+    {% if sport %}<input type="hidden" name="sport" value="{{ sport }}">{% endif %}
+  </form>
+
+  {% if all_sports %}
+  <div class="bk-chips" aria-label="Filter by sport">
+    <a class="bk-chip {% if not sport %}is-active{% endif %}" href="?{% if q %}q={{ q|urlencode }}{% endif %}">All</a>
+    {% for s in all_sports %}<a class="bk-chip {% if sport == s %}is-active{% endif %}" href="?sport={{ s|urlencode }}{% if q %}&q={{ q|urlencode }}{% endif %}">{{ s }}</a>{% endfor %}
+  </div>
+  {% endif %}
+
+  {% if cards %}
+  <div class="bk-grid">
+    {% for c in cards %}
+    <a class="bk-card" href="{% url 'book_turf' c.turf.slug %}">
+      {% include 'core/booking/_cover.html' with turf=c.turf badges=True open_now=c.open_now %}
+      <div class="bk-card-body">
+        {% if c.turf.sport_list %}<div class="bk-wrap">{% for sp in c.turf.sport_list %}<span class="bk-tag">{{ sp }}</span>{% endfor %}</div>{% endif %}
+        <div class="bk-row">
+          <span class="bk-price">{{ c.turf.price_from|inr }} <small>{% if c.turf.has_peak_pricing %}onwards {% endif %}/ slot</small></span>
+          <span class="bk-free {% if not c.free_today %}is-none{% endif %}">{% if c.free_today %}<i class="bk-dot"></i>{{ c.free_today }} slot{{ c.free_today|pluralize }} free today{% else %}No slots left today{% endif %}</span>
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="bk-empty"><b>{% if q or sport %}No turfs match that.{% else %}Booking is opening soon.{% endif %}</b>{% if q or sport %}Try a different search.{% else %}Turfs appear here as they come on board. Meanwhile, <a href="{% url 'turf_directory' %}" style="color:var(--tint);font-weight:600">browse all turfs</a> and host a match.{% endif %}</div>
+  {% endif %}
+</div>
+{% endblock %}

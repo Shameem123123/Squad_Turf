@@ -24,3 +24,19 @@ def unread_notifications(request):
         'live_sig': live_sig,
         'has_push_subscription': has_push_subscription,
     }
+
+
+def turf_admin_context(request):
+    """Tells base.html whether the signed-in person is a *turf admin* (a second
+    account type that only the site admin can create) so it can show the
+    console navigation instead of the player navigation."""
+    if not request.user.is_authenticated:
+        return {}
+    from django.urls import reverse
+    from .booking_logic import managed_turfs
+    turfs = managed_turfs(request.user)
+    return {
+        'is_turf_admin': bool(turfs),
+        'managed_turfs': turfs,
+        'console_url': reverse('manage_home'),
+    }

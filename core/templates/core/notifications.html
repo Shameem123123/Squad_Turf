@@ -1,4 +1,5 @@
 {% extends 'core/base.html' %}
+{% load booking_tags %}
 {% block title %}Notifications — SquadTurf{% endblock %}
 
 {% block content %}
@@ -10,7 +11,7 @@
 {% if notifications %}
     <div class="space-y-2.5">
         {% for note in notifications %}
-            <a href="{% if note.match %}{% url 'match_detail' note.match.id %}{% else %}{% url 'feed' %}{% endif %}"
+            <a href="{% if note.match %}{% url 'match_detail' note.match.id %}{% elif note.booking %}{% notification_link note %}{% else %}{% url 'feed' %}{% endif %}"
                class="block rounded-xl border px-4 py-3 transition-colors
                 {% if note.is_read %} bg-white border-ink-900/10 {% else %} bg-floodlight-400/10 border-floodlight-400/40 {% endif %} hover:border-pitch-600/30">
                 <div class="flex items-start justify-between gap-3">

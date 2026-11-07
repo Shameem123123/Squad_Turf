@@ -19,17 +19,17 @@ except ImportError:  # pywebpush not installed yet — degrade gracefully
     PUSH_AVAILABLE = False
 
 
-def notify(recipient, verb, message, match=None, request=None):
+def notify(recipient, verb, message, match=None, request=None, booking=None, url=None):
     """Create an in-app Notification and, if the recipient has push
     subscriptions, fan the same message out as a Web Push notification.
     Safe to call even if push isn't configured — it just skips that part.
     """
     note = Notification.objects.create(
-        recipient=recipient, verb=verb, message=message, match=match
+        recipient=recipient, verb=verb, message=message, match=match, booking=booking
     )
 
-    url = '/'
-    if match:
+    url = url or '/'
+    if match and url == '/':
         try:
             url = reverse('match_detail', args=[match.id])
         except Exception:

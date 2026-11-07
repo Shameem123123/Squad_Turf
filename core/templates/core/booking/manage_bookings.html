@@ -1,0 +1,32 @@
+{% extends 'core/base.html' %}
+{% load static booking_tags %}
+{% block title %}Bookings · {{ turf.name }} — SquadTurf{% endblock %}
+{% block content %}
+<div class="bk">
+  {% include 'core/booking/_manage_head.html' %}
+  <div class="bk-seg">
+    <a class="{% if sub == 'upcoming' %}is-active{% endif %}" href="?tab=upcoming">Upcoming</a>
+    <a class="{% if sub == 'past' %}is-active{% endif %}" href="?tab=past">Past</a>
+    <a class="{% if sub == 'cancelled' %}is-active{% endif %}" href="?tab=cancelled">Cancelled</a>
+  </div>
+  <form class="bk-search" method="get" role="search" style="margin-top:8px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input type="search" name="q" value="{{ q }}" placeholder="Name, phone or reference"><input type="hidden" name="tab" value="{{ sub }}">
+  </form>
+  <div id="live-region">
+    {% if bookings %}
+    <div class="bk-list">
+      {% for b in bookings %}
+      <a class="bk-bcard {% if b.is_cancelled %}is-dim{% endif %}" href="{% url 'manage_schedule' turf.slug %}?date={{ b.start_at|bk_date_iso }}">
+        <div class="bk-row"><div class="bk-person"><div class="bk-avatar">{{ b.customer_name|slice:":1"|upper }}</div><div><h3>{{ b.customer_name }}</h3><div class="bk-muted" style="font-size:13px">{{ b.customer_phone|default:"No phone" }}</div></div></div>
+          {% if b.is_cancelled %}<span class="bk-tag bk-tag-red">Cancelled{% if b.cancelled_by == 'PLAYER' %} by player{% endif %}</span>{% elif b.source == 'WALKIN' %}<span class="bk-tag bk-tag-blue">Walk-in</span>{% elif b.payment_status == 'PAID' %}<span class="bk-tag bk-tag-green">Paid</span>{% else %}<span class="bk-tag bk-tag-amber">Due {{ b.amount|inr }}</span>{% endif %}
+        </div>
+        <div class="when">{{ b.start_at|bk_day }} · {{ b|bk_range }}</div>
+        <div class="meta"><span class="bk-muted bk-num" style="font-size:13px">{{ b.reference }} · {{ b.slot_count }} slot{{ b.slot_count|pluralize }}</span><b class="bk-num">{{ b.amount|inr }}</b></div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}<div class="bk-empty"><b>Nothing here.</b>{% if q %}No bookings match “{{ q }}”.{% else %}New bookings appear here the moment they happen.{% endif %}</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

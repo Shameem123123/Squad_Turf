@@ -84,9 +84,25 @@ def login_view(request):
 
         login(request, user)
         messages.success(request, f"Welcome back, {profile.display_name}! 👋")
-        return redirect('feed')
+        return redirect(_post_login_url(request, user))
 
     return render(request, 'core/login.html', {'form': form})
+
+
+def _post_login_url(request, user):
+    """Where to land after logging in: back where they were headed (?next=),
+    their console if they're a turf admin, otherwise the feed."""
+    from django.urls import reverse
+    from django.utils.http import url_has_allowed_host_and_scheme
+    from .models import TurfManager
+    target = request.POST.get('next') or request.GET.get('next') or ''
+    if target and url_has_allowed_host_and_scheme(
+        target, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return target
+    if TurfManager.objects.filter(user=user).exists():
+        return reverse('manage_home')
+    return reverse('feed')
 
 
 def verify_otp(request):

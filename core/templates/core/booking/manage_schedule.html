@@ -1,0 +1,43 @@
+{% extends 'core/base.html' %}
+{% load static booking_tags %}
+{% block title %}Schedule · {{ turf.name }} — SquadTurf{% endblock %}
+{% block content %}
+<div class="bk bk-admin" id="bk-root" data-turf="{{ turf.name }}">
+  {% include 'core/booking/_manage_head.html' %}
+
+  {% if not turf.booking_enabled %}<div class="bk-flash error">Online booking is switched off for this turf by the site admin — players can't see it yet. You can still use the schedule.</div>{% endif %}
+  {% if turf.bookings_paused %}<div class="bk-flash error">Online bookings are paused. Re-enable them in Settings.</div>{% endif %}
+
+  <div class="bk-stats">
+    <div class="bk-stat"><small>Bookings</small><b data-stat="bookings">{{ stats.bookings }}</b><em data-stat="slots">{{ stats.booked_slots }} of {{ stats.capacity }} slots</em></div>
+    <div class="bk-stat"><small>Occupancy</small><b data-stat="occupancy">{{ stats.occupancy }}%</b><div class="bk-meter"><i id="bk-meter" style="width:{{ stats.occupancy }}%"></i></div></div>
+    <div class="bk-stat"><small>Revenue</small><b data-stat="revenue">{{ stats.revenue|inr }}</b><em>this day</em></div>
+    <div class="bk-stat"><small>To collect</small><b data-stat="to_collect">{{ stats.to_collect|inr }}</b><em>pay at turf</em></div>
+  </div>
+
+  {% if next_up %}
+  <div class="bk-next">
+    <div class="bk-avatar" style="background:rgba(52,199,89,.2);color:#34C759">{{ next_up.customer_name|slice:":1"|upper }}</div>
+    <div class="grow"><small>{% if next_up.in_progress %}Playing now{% else %}Next up{% endif %}</small><b>{{ next_up.customer_name }}</b><p>{{ next_up.start_at|bk_day }} · {{ next_up|bk_range }}{% if next_up.payment_status == 'PENDING' %} · {{ next_up.amount|inr }} due{% endif %}</p></div>
+    {% if next_up.customer_phone %}<a class="bk-btn bk-btn-green bk-btn-sm" href="tel:{{ next_up.customer_phone }}">Call</a>{% endif %}
+  </div>
+  {% endif %}
+
+  <div class="bk-sticky">
+    <div class="bk-sticky-head"><h2>Schedule</h2></div>
+    <div class="bk-dates" id="bk-dates" role="tablist" aria-label="Choose a date"></div>
+  </div>
+  <div id="bk-slots"></div>
+  <div class="bk-legend"><span><i></i>Free</span><span><i class="l-mine"></i>Online booking</span><span><i class="l-walkin"></i>Walk-in</span><span><i class="l-booked"></i>Closed</span></div>
+
+  <div class="bk-day-actions">
+    <form method="post" action="{% url 'manage_close_day' turf.slug %}" data-confirm-title="Close this day?" data-confirm-body="Every free slot is blocked so nobody can book it. Existing bookings stay as they are." data-confirm-label="Close the day">{% csrf_token %}<input type="hidden" name="date" value="{{ day.isoformat }}" data-bk-date-input><button class="bk-btn bk-btn-soft bk-btn-sm" type="submit">Close this day</button></form>
+    <form method="post" action="{% url 'manage_reopen_day' turf.slug %}" data-confirm-title="Reopen this day?" data-confirm-body="All blocked slots on this date become bookable again." data-confirm-label="Reopen">{% csrf_token %}<input type="hidden" name="date" value="{{ day.isoformat }}" data-bk-date-input><button class="bk-btn bk-btn-soft bk-btn-sm" type="submit">Reopen blocked slots</button></form>
+  </div>
+  <p class="bk-note" style="margin-top:14px"><span>👆</span><span>Tap any slot to add a walk-in, block it, mark it paid or cancel it. This screen updates live as players book.</span></p>
+  <div style="height:90px"></div>
+</div>
+{% include 'core/booking/_sheet.html' %}
+{{ cfg|json_script:"bk-cfg" }}
+{% endblock %}
+{% block extra_js %}<script src="{% static 'core/js/booking.js' %}" defer></script>{% endblock %}

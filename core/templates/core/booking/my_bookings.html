@@ -1,0 +1,21 @@
+{% extends 'core/base.html' %}
+{% load static booking_tags %}
+{% block title %}My bookings — SquadTurf{% endblock %}
+{% block content %}
+<div class="bk">
+  <p class="bk-eyebrow">Bookings</p>
+  <h1 class="bk-title">My bookings</h1>
+  <div class="bk-seg" role="tablist">
+    <a class="{% if tab == 'upcoming' %}is-active{% endif %}" href="?tab=upcoming">Upcoming{% if upcoming_count %} · {{ upcoming_count }}{% endif %}</a>
+    <a class="{% if tab == 'past' %}is-active{% endif %}" href="?tab=past">Past &amp; cancelled</a>
+  </div>
+  <div id="live-region">
+    {% if bookings %}
+      <div class="bk-list">{% for b in bookings %}{% include 'core/booking/_bcard.html' %}{% endfor %}</div>
+    {% else %}
+      <div class="bk-empty"><b>{% if tab == 'upcoming' %}Nothing booked yet.{% else %}No past bookings.{% endif %}</b>
+        {% if tab == 'upcoming' %}Lock in a slot and the squad will follow.<div style="margin-top:16px"><a class="bk-btn" href="{% url 'book_directory' %}">Book a turf</a></div>{% endif %}</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

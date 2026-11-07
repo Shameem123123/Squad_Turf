@@ -1,0 +1,9 @@
+{% load booking_tags %}
+<div class="bk-cover {% if turf.cover_image_url %}bk-cover-has-img{% endif %}" style="--h: {{ turf.slug|cover_hue }}">
+  {% if turf.cover_image_url %}<img src="{{ turf.cover_image_url }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove();this.parentNode&&this.parentNode.classList.remove('bk-cover-has-img')">{% endif %}
+  {% if badges %}<div class="bk-cover-badges">{% if open_now %}<span class="bk-tag bk-tag-green"><i class="bk-dot"></i>Open now</span>{% else %}<span class="bk-tag">Closed now</span>{% endif %}{% if turf.bookings_paused %}<span class="bk-tag bk-tag-amber">Paused</span>{% endif %}</div>{% endif %}
+  <div class="bk-cover-text">
+    {% if hero %}<h1>{{ turf.name }}</h1>{% else %}<h3>{{ turf.name }}</h3>{% endif %}
+    <p>{{ turf.location_name }}{% if turf.pitch_info %} · {{ turf.pitch_info }}{% endif %}</p>
+  </div>
+</div>

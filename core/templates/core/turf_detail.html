@@ -1,4 +1,5 @@
 {% extends 'core/base.html' %}
+{% load booking_tags %}
 {% load core_extras %}
 {% block title %}{{ turf.name }} — SquadTurf{% endblock %}
 
@@ -11,6 +12,9 @@
         <p class="text-ink-500 text-sm mt-1">📍 {{ turf.location_name }}</p>
         <p class="text-xs font-bold text-floodlight-500 mt-1">{{ matches|length }} live match{{ matches|length|pluralize }} right now</p>
     </div>
+    {% if turf.is_bookable %}
+        <a href="{% url 'book_turf' turf.slug %}" class="shrink-0 inline-flex items-center gap-1.5 bg-pitch-900 text-white font-bold text-sm px-4 py-2.5 rounded-xl shadow-sm">Book a slot →</a>
+    {% endif %}
     {% if user.is_authenticated %}
         <a href="{% url 'create_match' %}?turf={{ turf.id }}" class="shrink-0 inline-flex items-center gap-1.5 bg-floodlight-400 hover:bg-floodlight-500 text-pitch-950 font-bold text-sm px-4 py-2.5 rounded-xl transition-colors shadow-sm">
             Host a match here →

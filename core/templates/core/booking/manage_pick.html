@@ -1,0 +1,13 @@
+{% extends 'core/base.html' %}
+{% load booking_tags %}
+{% block title %}Turf console — SquadTurf{% endblock %}
+{% block content %}
+<div class="bk">
+  <p class="bk-eyebrow">Turf console</p>
+  <h1 class="bk-title">Choose a turf</h1>
+  <div class="bk-list">
+    {% for t in turfs %}<a class="bk-bcard" href="{% url 'manage_schedule' t.slug %}"><h3>{{ t.name }}</h3><div class="when bk-muted">{{ t.location_name }}</div></a>
+    {% empty %}<div class="bk-empty"><b>No turfs yet.</b>Switch booking on for a turf in the admin site.</div>{% endfor %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% load booking_tags %}{% if cards %}
+<section class="bk bk-strip" aria-label="Book a turf">
+  <div class="bk-strip-head"><h2>Book a turf</h2><a href="{% url 'book_directory' %}">See all</a></div>
+  <div class="bk-strip-scroll">
+    {% for c in cards %}
+    <a class="bk-mini" href="{% url 'book_turf' c.turf.slug %}">
+      {% include 'core/booking/_cover.html' with turf=c.turf %}
+      <div class="bk-mini-foot">
+        <span class="bk-price">{{ c.turf.price_from|inr }} <small>/ slot</small></span>
+        <span class="bk-free {% if not c.free_today %}is-none{% endif %}">{% if c.free_today %}<i class="bk-dot"></i>{{ c.free_today }} free today{% else %}Full today{% endif %}</span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}

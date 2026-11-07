@@ -1,4 +1,5 @@
 {% extends 'core/base.html' %}
+{% load booking_tags %}
 {% block title %}Turfs — SquadTurf{% endblock %}
 
 {% block content %}
@@ -25,6 +26,7 @@
                         <span class="shrink-0 text-xs font-bold px-2 py-1 rounded-md bg-floodlight-400/20 text-floodlight-500">{{ turf.open_match_count }} live</span>
                     {% endif %}
                 </div>
+                {% if turf.booking_enabled %}<p class="text-xs font-bold text-pitch-700 mt-2">⚡ Slots bookable · from {{ turf.price_from|inr }}</p>{% endif %}
                 <p class="text-xs font-semibold text-pitch-600 mt-3">View matches &amp; host here →</p>
             </a>
         {% endfor %}
