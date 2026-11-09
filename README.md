@@ -1,4 +1,5 @@
 # SquadTurf
+**Developed by Shameemul Hassan P**
 
 Post a match. Fill your squad. Kick off in minutes.
 
