@@ -36,5 +36,5 @@ class TurfSettingsForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for name, field in self.fields.items():
             if not isinstance(field.widget, forms.CheckboxInput):
-                field.widget.attrs['class'] = 'bk-input'
+                field.widget.attrs['class'] = 'st-input'
         self.fields['peak_starts_at'].input_formats = ['%H:%M', '%H:%M:%S']

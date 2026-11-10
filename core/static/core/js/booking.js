@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  var POLL_MS = 4000;
+  var POLL_MS = 6000, POLL_MAX_MS = 60000;
   var REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var GROUPS = [['morning', 'Morning'], ['afternoon', 'Afternoon'], ['evening', 'Evening'], ['night', 'Night']];
 
@@ -43,7 +43,7 @@
 
   var toastEl, toastT;
   function toast(msg) {
-    if (!toastEl) { toastEl = el('div', { class: 'bk-toast', role: 'status', 'aria-live': 'polite' }); document.body.appendChild(toastEl); }
+    if (!toastEl) { toastEl = el('div', { class: 'st-toast', role: 'status', 'aria-live': 'polite' }); document.body.appendChild(toastEl); }
     toastEl.textContent = msg;
     toastEl.classList.add('is-on');
     clearTimeout(toastT);
@@ -85,13 +85,13 @@
     function stop() { if (anim) { anim.stop(); anim = null; } }
 
     function init() {
-      sheet = $('#bk-sheet'); scrim = $('#bk-scrim');
+      sheet = $('#st-sheet'); scrim = $('#st-scrim');
       if (!sheet || !scrim || sheet._ready) return !!sheet;
       sheet._ready = true;
-      body = $('#bk-sheet-body');
+      body = $('#st-sheet-body');
       scrim.addEventListener('click', close);
       document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && isOpen) close(); });
-      var grab = $('.bk-sheet-grab', sheet);
+      var grab = $('.st-sheet-grab', sheet);
       grab.addEventListener('pointerdown', function (e) {
         stop(); drag = { startY: e.clientY, startPos: y }; samples = [{ t: e.timeStamp, y: e.clientY }];
         grab.setPointerCapture(e.pointerId); grab.style.cursor = 'grabbing';
@@ -127,7 +127,7 @@
       h = sheet.offsetHeight + 48; stop(); isOpen = true;
       apply(h);
       anim = spring({ from: h, to: 0, response: 0.42, damping: 1, onUpdate: apply });
-      var f = $('input:not([type=hidden]), select, textarea, .bk-btn', sheet); if (f && !('ontouchstart' in window)) f.focus({ preventScroll: true });
+      var f = $('input:not([type=hidden]), select, textarea, .st-btn', sheet); if (f && !('ontouchstart' in window)) f.focus({ preventScroll: true });
     }
     function close() { if (isOpen) dismiss(0); }
     return { open: open, close: close };
@@ -142,19 +142,19 @@
       var danger = f.hasAttribute('data-danger');
       Sheet.open(function (body) {
         body.appendChild(el('h2', { text: f.getAttribute('data-confirm-title') }));
-        body.appendChild(el('p', { class: 'bk-sub', text: f.getAttribute('data-confirm-body') || '' }));
-        var go = el('button', { type: 'button', class: 'bk-btn bk-btn-block ' + (danger ? 'bk-btn-danger' : ''), text: f.getAttribute('data-confirm-label') || 'Confirm',
+        body.appendChild(el('p', { class: 'st-sub', text: f.getAttribute('data-confirm-body') || '' }));
+        var go = el('button', { type: 'button', class: 'st-btn st-btn-block ' + (danger ? 'st-btn-danger' : ''), text: f.getAttribute('data-confirm-label') || 'Confirm',
           onclick: function () { f._confirmed = true; go.disabled = true; HTMLFormElement.prototype.submit.call(f); } });
-        body.appendChild(el('div', { class: 'bk-stack', style: 'margin-top:20px' }, [go,
-          el('button', { type: 'button', class: 'bk-btn bk-btn-soft bk-btn-block', text: 'Not now', onclick: Sheet.close })]));
+        body.appendChild(el('div', { class: 'st-stack', style: 'margin-top:20px' }, [go,
+          el('button', { type: 'button', class: 'st-btn st-btn-soft st-btn-block', text: 'Not now', onclick: Sheet.close })]));
       }, document.activeElement);
     });
   }
 
   /* ---------- layout vars (nav / tab bar heights) ---------------------------- */
   function measure() {
-    var nav = $('nav'); var tab = $('#mobile-tab-bar');
-    var navH = nav ? nav.getBoundingClientRect().height : 58;
+    var nav = $('.st-nav'); var tab = $('#tab-bar');
+    var navH = nav ? nav.getBoundingClientRect().height : 56;
     var tabH = 0;
     if (tab && getComputedStyle(tab).display !== 'none') tabH = tab.getBoundingClientRect().height;
     document.documentElement.style.setProperty('--nav-h', Math.round(navH) + 'px');
@@ -165,10 +165,17 @@
   function Picker(cfg) {
     var admin = cfg.mode === 'admin';
     var S = { date: cfg.date, slots: cfg.payload.slots, days: cfg.payload.days, canBook: cfg.payload.can_book, sel: null, key: '' };
-    var datesEl = $('#bk-dates'), slotsEl = $('#bk-slots'), liveEl = $('#bk-live-time'), sticky = $('.bk-sticky');
-    var bar = $('#bk-bar'), barRange = $('#bk-bar-range'), barSub = $('#bk-bar-sub'), barPrice = $('#bk-bar-price'), barBtn = $('#bk-bar-btn');
+    var datesEl = $('#st-dates'), slotsEl = $('#st-slots'), liveEl = $('#st-live-time'), sticky = $('.st-sticky');
+    var bar = $('#st-bar'), barRange = $('#st-bar-range'), barSub = $('#st-bar-sub'), barPrice = $('#st-bar-price'), barBtn = $('#st-bar-btn');
     var barAnim = null, barP = 0, shownPrice = 0, priceAnim = null, timer = null, busy = false;
-    var turfName = (cfg.turfName || '');
+    var turfName = (cfg.turfName || ''), failures = 0;
+    function skeleton() {
+      slotsEl.textContent = '';
+      var g = el('div', { class: 'st-skel-slots', 'aria-hidden': 'true' });
+      for (var i = 0; i < 9; i++) g.appendChild(el('div', { class: 'st-skel' }));
+      slotsEl.appendChild(g);
+      S.key = '';
+    }
 
     /* dates */
     function hintFor(date) {
@@ -181,7 +188,7 @@
       datesEl.textContent = '';
       cfg.dates.forEach(function (d) {
         var hint = hintFor(d.date);
-        var b = el('button', { type: 'button', class: 'bk-date', role: 'tab', 'data-date': d.date, 'aria-selected': d.date === S.date ? 'true' : 'false',
+        var b = el('button', { type: 'button', class: 'st-date', role: 'tab', 'data-date': d.date, 'aria-selected': d.date === S.date ? 'true' : 'false',
           'aria-label': dateLabel(d.date, true), onclick: function () { selectDate(d.date); } }, [
           el('span', { class: 'dow', text: d.dow }), el('span', { class: 'dom', text: d.dom }), el('span', { class: 'mon', text: d.mon }),
           el('span', { class: 'hint ' + hint })]);
@@ -196,7 +203,7 @@
       });
     }
     function scrollDateIntoView(smooth) {
-      var b = $('.bk-date[aria-selected="true"]', datesEl); if (!b) return;
+      var b = $('.st-date[aria-selected="true"]', datesEl); if (!b) return;
       var left = b.offsetLeft - (datesEl.clientWidth - b.offsetWidth) / 2;
       datesEl.scrollTo({ left: left, behavior: smooth && !REDUCED ? 'smooth' : 'auto' });
     }
@@ -221,20 +228,20 @@
 
     function renderSlots() {
       slotsEl.textContent = '';
-      if (!S.slots.length) { slotsEl.appendChild(el('div', { class: 'bk-closed-note', text: 'No slots on this day.' })); return; }
+      if (!S.slots.length) { slotsEl.appendChild(el('div', { class: 'st-closed-note', text: 'No slots on this day.' })); return; }
       GROUPS.forEach(function (g) {
         var items = S.slots.map(function (s, i) { return [s, i]; }).filter(function (p) { return p[0].group === g[0]; });
         if (!items.length) return;
-        var wrap = el('div', { class: 'bk-slots', role: 'group', 'aria-label': g[1] + ' slots' });
+        var wrap = el('div', { class: 'st-slots', role: 'group', 'aria-label': g[1] + ' slots' });
         items.forEach(function (p) {
           var s = p[0], i = p[1];
-          var b = el('button', { type: 'button', class: 'bk-slot', 'data-i': i, 'data-start': s.start, 'data-state': s.state, 'aria-label': slotLabel(s),
+          var b = el('button', { type: 'button', class: 'st-slot', 'data-i': i, 'data-start': s.start, 'data-state': s.state, 'aria-label': slotLabel(s),
             onclick: function () { onTap(i, b); } });
           slotInner(b, s);
           if (!admin) b.setAttribute('aria-pressed', 'false');
           wrap.appendChild(b);
         });
-        slotsEl.appendChild(el('div', { class: 'bk-group' }, [el('h3', { text: g[1] }), wrap]));
+        slotsEl.appendChild(el('div', { class: 'st-group' }, [el('h3', { text: g[1] }), wrap]));
       });
       S.key = structKey(S.slots);
       paintSelection();
@@ -242,7 +249,7 @@
     function patchSlots(next) {
       if (structKey(next) !== S.key) { S.slots = next; renderSlots(); return; }
       next.forEach(function (s, i) {
-        var old = S.slots[i], b = $('.bk-slot[data-i="' + i + '"]', slotsEl);
+        var old = S.slots[i], b = $('.st-slot[data-i="' + i + '"]', slotsEl);
         if (!b) return;
         var changed = old.state !== s.state || old.price !== s.price || JSON.stringify(old.booking || null) !== JSON.stringify(s.booking || null);
         if (changed) {
@@ -259,7 +266,7 @@
     function paintSelection() {
       if (admin) return;
       var r = range();
-      Array.prototype.forEach.call(slotsEl.querySelectorAll('.bk-slot'), function (b) {
+      Array.prototype.forEach.call(slotsEl.querySelectorAll('.st-slot'), function (b) {
         var i = +b.getAttribute('data-i');
         b.setAttribute('aria-pressed', r && i >= r[0] && i <= r[1] ? 'true' : 'false');
       });
@@ -329,20 +336,20 @@
         var r = range();
         for (var i = r[0]; i <= r[1]; i++) lines.push([S.slots[i].label + ' – ' + S.slots[i].end_label, inr(S.slots[i].price)]);
         body.appendChild(el('h2', { text: 'Confirm booking' }));
-        body.appendChild(el('p', { class: 'bk-sub', text: turfName }));
-        var rows = [el('div', { class: 'bk-sum-row' }, [el('span', { text: 'Date' }), el('b', { text: dateLabel(S.date, true) })])];
-        lines.forEach(function (l) { rows.push(el('div', { class: 'bk-sum-row' }, [el('span', { text: l[0] }), el('b', { text: l[1] })])); });
-        rows.push(el('div', { class: 'bk-sum-row bk-sum-total' }, [el('span', { text: 'Total' }), el('b', { text: inr(s.total) })]));
-        body.appendChild(el('div', { class: 'bk-sum' }, rows));
-        var go = el('button', { type: 'submit', class: 'bk-btn bk-btn-green bk-btn-block', text: 'Confirm booking · ' + inr(s.total) });
+        body.appendChild(el('p', { class: 'st-sub', text: turfName }));
+        var rows = [el('div', { class: 'st-sum-row' }, [el('span', { text: 'Date' }), el('b', { text: dateLabel(S.date, true) })])];
+        lines.forEach(function (l) { rows.push(el('div', { class: 'st-sum-row' }, [el('span', { text: l[0] }), el('b', { text: l[1] })])); });
+        rows.push(el('div', { class: 'st-sum-row st-sum-total' }, [el('span', { text: 'Total' }), el('b', { text: inr(s.total) })]));
+        body.appendChild(el('div', { class: 'st-sum' }, rows));
+        var go = el('button', { type: 'submit', class: 'st-btn st-btn-block', text: 'Confirm booking · ' + inr(s.total) });
         var form = el('form', { method: 'post', action: cfg.confirmUrl, onsubmit: function () { go.disabled = true; go.textContent = 'Booking…'; } }, [
           el('input', { type: 'hidden', name: 'csrfmiddlewaretoken', value: csrf() }),
           el('input', { type: 'hidden', name: 'date', value: S.date }),
           el('input', { type: 'hidden', name: 'start', value: s.start }),
           el('input', { type: 'hidden', name: 'count', value: String(s.count) }),
-          el('label', { class: 'bk-field' }, [el('span', { text: 'Note for the turf (optional)' }),
-            el('input', { class: 'bk-input', name: 'note', maxlength: '200', placeholder: 'Team name, number of players…' })]),
-          el('p', { class: 'bk-note', text: 'Pay at the turf. Free cancellation until ' + cfg.cancelHours + ' hours before the start.' }),
+          el('label', { class: 'st-field' }, [el('span', { text: 'Note for the turf (optional)' }),
+            el('input', { class: 'st-input', name: 'note', maxlength: '200', placeholder: 'Team name, number of players…' })]),
+          el('p', { class: 'st-note', text: 'Pay at the turf. Free cancellation until ' + cfg.cancelHours + ' hours before the start.' }),
           go]);
         body.appendChild(form);
       }, barBtn);
@@ -357,45 +364,47 @@
       return el('form', Object.assign({ method: 'post', action: action }, extra || {}), inputs.concat(kids || []));
     }
     function row(k, v, href) {
-      return el('div', { class: 'bk-sum-row' }, [el('span', { text: k }), href ? el('a', { href: href, class: 'bk-num', style: 'color:var(--tint);font-weight:600', text: v }) : el('b', { text: v })]);
+      return el('div', { class: 'st-sum-row' }, [el('span', { text: k }), href ? el('a', { href: href, class: 'st-num', style: 'font-weight:600;text-decoration:underline', text: v }) : el('b', { text: v })]);
     }
     function openAdminSheet(i, btn) {
       var s = S.slots[i], A = cfg.actions;
       Sheet.open(function (body) {
         body.appendChild(el('h2', { text: s.label + ' – ' + s.end_label }));
-        body.appendChild(el('p', { class: 'bk-sub', text: dateLabel(S.date, true) }));
+        body.appendChild(el('p', { class: 'st-sub', text: dateLabel(S.date, true) }));
         if (s.state === 'free') {
           var run = 0; for (var j = i; j < S.slots.length && S.slots[j].state === 'free' && run < cfg.maxSlots; j++) run++;
-          var sel = el('select', { class: 'bk-input', name: 'count' });
+          var sel = el('select', { class: 'st-input', name: 'count' });
           for (var n = 1; n <= run; n++) sel.appendChild(el('option', { value: String(n), text: n + (n > 1 ? ' slots' : ' slot') + ' · ' + inr(S.slots.slice(i, i + n).reduce(function (a, x) { return a + x.price; }, 0)) }));
-          body.appendChild(el('h2', { class: 'bk-h2', style: 'margin-top:20px;font-size:17px', text: 'Walk-in booking' }));
+          body.appendChild(el('h2', { class: 'st-h2', style: 'margin-top:20px;font-size:17px', text: 'Walk-in booking' }));
           body.appendChild(post(A.walkin, { date: S.date, start: s.start }, [
-            el('label', { class: 'bk-field' }, [el('span', { text: 'Name' }), el('input', { class: 'bk-input', name: 'name', required: true, maxlength: '120', placeholder: 'Player or team name' })]),
-            el('label', { class: 'bk-field' }, [el('span', { text: 'Phone (optional)' }), el('input', { class: 'bk-input', name: 'phone', inputmode: 'tel', maxlength: '15' })]),
-            el('label', { class: 'bk-field' }, [el('span', { text: 'Duration' }), sel]),
-            el('label', { class: 'bk-check' }, [el('input', { type: 'checkbox', name: 'paid' }), 'Already paid']),
-            el('button', { type: 'submit', class: 'bk-btn bk-btn-green bk-btn-block', text: 'Add walk-in' })]));
-          body.appendChild(el('div', { class: 'bk-divider' }));
+            el('label', { class: 'st-field' }, [el('span', { text: 'Name' }), el('input', { class: 'st-input', name: 'name', required: true, maxlength: '120', placeholder: 'Player or team name' })]),
+            el('label', { class: 'st-field' }, [el('span', { text: 'Phone (optional)' }), el('input', { class: 'st-input', name: 'phone', inputmode: 'tel', maxlength: '15' })]),
+            el('label', { class: 'st-field' }, [el('span', { text: 'Duration' }), sel]),
+            el('label', { class: 'st-check' }, [el('input', { type: 'checkbox', name: 'paid' }), 'Already paid']),
+            el('button', { type: 'submit', class: 'st-btn st-btn-block', text: 'Add walk-in' })]));
+          body.appendChild(el('div', { class: 'st-divider' }));
           body.appendChild(post(A.block, { date: S.date, start: s.start }, [
-            el('label', { class: 'bk-field' }, [el('span', { text: 'Or close this slot' }), el('input', { class: 'bk-input', name: 'reason', maxlength: '120', placeholder: 'Reason — maintenance, tournament… (optional)' })]),
-            el('button', { type: 'submit', class: 'bk-btn bk-btn-soft bk-btn-block', text: 'Block slot' })]));
+            el('label', { class: 'st-field' }, [el('span', { text: 'Or close this slot' }), el('input', { class: 'st-input', name: 'reason', maxlength: '120', placeholder: 'Reason — maintenance, tournament… (optional)' })]),
+            el('button', { type: 'submit', class: 'st-btn st-btn-soft st-btn-block', text: 'Block slot' })]));
         } else if (s.state === 'blocked') {
-          body.appendChild(el('div', { class: 'bk-sum' }, [row('Status', 'Closed'), row('Reason', s.booking.name || 'Closed')]));
-          body.appendChild(post(A.unblock, { ref: s.booking.ref }, [el('button', { type: 'submit', class: 'bk-btn bk-btn-green bk-btn-block', text: 'Reopen slot' })]));
+          body.appendChild(el('div', { class: 'st-sum' }, [row('Status', 'Closed'), row('Reason', s.booking.name || 'Closed')]));
+          body.appendChild(post(A.unblock, { ref: s.booking.ref }, [el('button', { type: 'submit', class: 'st-btn st-btn-block', text: 'Reopen slot' })]));
         } else if (s.booking) {
           var b = s.booking, url = function (u) { return u.replace('REF', b.ref); };
-          body.appendChild(el('div', { class: 'bk-sum' }, [
+          body.appendChild(el('div', { class: 'st-sum' }, [
             row(b.source === 'WALKIN' ? 'Walk-in' : 'Player', b.name),
             b.phone ? row('Phone', b.phone, 'tel:' + b.phone) : null,
             row('Time', b.range), row('Slots', String(b.slots)), row('Amount', inr(b.amount)),
-            row('Payment', b.paid ? 'Paid' : 'To collect at turf'), row('Reference', b.ref), b.note ? row('Note', b.note) : null]));
-          body.appendChild(post(url(A.paid), { date: S.date }, [el('button', { type: 'submit', class: 'bk-btn bk-btn-green bk-btn-block', text: b.paid ? 'Mark as unpaid' : 'Mark as paid · ' + inr(b.amount) })]));
-          var why = el('input', { class: 'bk-input', name: 'reason', maxlength: '200', placeholder: 'Reason shown to the player (optional)' });
-          var cancelForm = post(url(A.cancel), {}, [el('label', { class: 'bk-field', style: 'margin-top:18px' }, [el('span', { text: 'Cancel this booking' }), why]),
-            el('button', { type: 'submit', class: 'bk-btn bk-btn-danger bk-btn-block', text: 'Cancel booking & free the slot' })]);
+            row('Payment', b.paid ? 'Paid' : 'To collect at turf'), row('Reference', b.ref),
+            b.source === 'ONLINE' ? row('Ticket', b.scanned ? 'Scanned' : 'Not scanned yet') : null,
+            b.note ? row('Note', b.note) : null]));
+          body.appendChild(post(url(A.paid), { date: S.date }, [el('button', { type: 'submit', class: 'st-btn st-btn-block', text: b.paid ? 'Mark as unpaid' : 'Mark as paid · ' + inr(b.amount) })]));
+          var why = el('input', { class: 'st-input', name: 'reason', maxlength: '200', placeholder: 'Reason shown to the player (optional)' });
+          var cancelForm = post(url(A.cancel), {}, [el('label', { class: 'st-field', style: 'margin-top:18px' }, [el('span', { text: 'Cancel this booking' }), why]),
+            el('button', { type: 'submit', class: 'st-btn st-btn-danger st-btn-block', text: 'Cancel booking & free the slot' })]);
           body.appendChild(cancelForm);
         } else {
-          body.appendChild(el('p', { class: 'bk-sub', text: 'This slot has ended.' }));
+          body.appendChild(el('p', { class: 'st-sub', text: 'This slot has ended.' }));
         }
       }, btn);
     }
@@ -407,7 +416,7 @@
       S.days = data.days; S.canBook = data.can_book;
       patchSlots(data.slots);
       patchDates();
-      if (liveEl) liveEl.textContent = 'Updated ' + data.server_time;
+      if (liveEl) liveEl.textContent = 'Live · ' + new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
       if (prevSel && !admin) {
         for (var i = prevSel[0]; i <= prevSel[1]; i++) if (!isFree(i)) { taken = S.slots[i]; break; }
         if (taken) {
@@ -417,34 +426,43 @@
         paintSelection();
       }
       if (admin && data.stats) updateStats(data.stats);
-      var closed = $('#bk-paused'); if (closed) closed.hidden = S.canBook || admin;
+      var closed = $('#st-paused'); if (closed) closed.hidden = S.canBook || admin;
     }
     function updateStats(st) {
       var map = { bookings: String(st.bookings), occupancy: st.occupancy + '%', revenue: inr(st.revenue), to_collect: inr(st.to_collect) };
       Object.keys(map).forEach(function (k) { var n = $('[data-stat="' + k + '"]'); if (n && n.textContent !== map[k]) n.textContent = map[k]; });
-      var m = $('#bk-meter'); if (m) m.style.width = st.occupancy + '%';
+      var m = $('#st-meter'); if (m) m.style.width = st.occupancy + '%';
       var sub = $('[data-stat="slots"]'); if (sub) sub.textContent = st.booked_slots + ' of ' + st.capacity + ' slots';
     }
     function fetchDay(date, fromPoll) {
       if (busy && fromPoll) return Promise.resolve();
       busy = true;
-      return fetch(cfg.apiUrl + '?date=' + encodeURIComponent(date) + '&_=' + Date.now(), { credentials: 'same-origin', cache: 'no-store', headers: { 'Accept': 'application/json' } })
+      // `no-cache` = revalidate every time; an unchanged day comes back as an empty 304.
+      return fetch(cfg.apiUrl + '?date=' + encodeURIComponent(date), { credentials: 'same-origin', cache: 'no-cache', headers: { 'Accept': 'application/json' } })
         .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-        .then(function (d) { busy = false; apply(d, fromPoll); })
-        .catch(function () { busy = false; });
+        .then(function (d) { busy = false; failures = 0; apply(d, fromPoll); })
+        .catch(function () { busy = false; failures++; });
     }
     function selectDate(date) {
       if (date === S.date) return;
-      Array.prototype.forEach.call(document.querySelectorAll('[data-bk-date-input]'), function (i) { i.value = date; });
+      Array.prototype.forEach.call(document.querySelectorAll('[data-st-date-input]'), function (i) { i.value = date; });
       S.date = date; S.sel = null; paintSelection(); patchDates(); scrollDateIntoView(true);
-      slotsEl.style.opacity = '.45';
+      skeleton();
       try { history.replaceState(null, '', '?date=' + date); } catch (e) { /* noop */ }
-      fetchDay(date, false).then(function () { slotsEl.style.opacity = ''; });
+      fetchDay(date, false).then(function () {
+        if (S.key) return;
+        slotsEl.textContent = '';
+        slotsEl.appendChild(el('div', { class: 'st-closed-note', text: "Couldn't load this day. Retrying…" }));
+      });
       buzz(5);
     }
     function schedule() {
-      clearInterval(timer);
-      timer = setInterval(function () { if (!document.hidden) fetchDay(S.date, true); }, POLL_MS);
+      clearTimeout(timer);
+      var wait = Math.min(POLL_MS * Math.pow(2, failures), POLL_MAX_MS);   // back off while offline
+      timer = setTimeout(function () {
+        var next = document.hidden ? Promise.resolve() : fetchDay(S.date, true);
+        next.then(schedule);
+      }, wait);
     }
 
     /* boot */
@@ -465,20 +483,20 @@
   function boot() {
     // The page wrapper keeps a transform from the page-in animation, which would trap
     // position:fixed children. Hoist the floating UI to <body> so it's viewport-fixed.
-    ['bk-bar', 'bk-scrim', 'bk-sheet'].forEach(function (id) { var n = document.getElementById(id); if (n && n.parentNode !== document.body) document.body.appendChild(n); });
+    ['st-bar', 'st-scrim', 'st-sheet'].forEach(function (id) { var n = document.getElementById(id); if (n && n.parentNode !== document.body) document.body.appendChild(n); });
     measure(); window.addEventListener('resize', measure);
     initConfirmForms();
-    var cfgNode = $('#bk-cfg');
+    var cfgNode = $('#st-cfg');
     if (cfgNode) {
       var cfg = JSON.parse(cfgNode.textContent);
-      var root = $('#bk-root'); if (root && root.dataset.turf) cfg.turfName = root.dataset.turf;
+      var root = $('#st-root'); if (root && root.dataset.turf) cfg.turfName = root.dataset.turf;
       if (root && root.dataset.ticket) cfg.ticketBase = root.dataset.ticket;
       Picker(cfg);
     }
     // Small, quiet delight on the ticket page.
-    var tk = $('[data-bk-share]');
+    var tk = $('[data-st-share]');
     if (tk) tk.addEventListener('click', function () {
-      var text = tk.getAttribute('data-bk-share');
+      var text = tk.getAttribute('data-st-share');
       if (navigator.share) navigator.share({ text: text }).catch(function () {});
       else window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
     });

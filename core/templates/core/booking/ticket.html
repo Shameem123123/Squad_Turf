@@ -1,63 +1,65 @@
 {% extends 'core/base.html' %}
 {% load static booking_tags %}
-{% block title %}Booking {{ b.reference }} — SquadTurf{% endblock %}
+{% block title %}Ticket {{ b.reference }} — SquadTurf{% endblock %}
 {% block content %}
-<div class="bk">
-  <a class="bk-back" href="{% url 'my_bookings' %}">‹ My bookings</a>
+<div class="st">
+  <a class="st-back" href="{% url 'my_bookings' %}">‹ My bookings</a>
 
   {% if is_new and not b.is_cancelled %}
-  <div class="bk-success">
-    <svg class="bk-check-svg" viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="38"/><path d="M24 41l11 11 21-23"/></svg>
-    <h1>You're booked.</h1>
-    <p class="bk-sub">Show this ticket at the turf. See you on the pitch.</p>
+  <div class="st-success">
+    <svg class="st-check-svg" viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="38"/><path d="M24 41l11 11 21-23"/></svg>
+    <h1>You're booked</h1>
+    <p class="st-sub">Show the code at the turf.</p>
   </div>
   {% endif %}
 
-  <article class="bk-ticket" style="--h: {{ turf.slug|cover_hue }}">
-    <div class="bk-ticket-top">
-      <p class="bk-eyebrow" style="color:rgba(255,255,255,.75)">Turf booking</p>
+  <article class="st-ticket">
+    <div class="st-ticket-top" style="--h: {{ turf.slug|cover_hue }}">
+      <p class="st-eyebrow">Turf booking</p>
       <h1>{{ turf.name }}</h1>
       <p>{{ turf.address|default:turf.location_name }}</p>
-      <div class="bk-when"><div class="d">{{ b.start_at|bk_day }}</div><div class="t">{{ b|bk_range }}</div></div>
+      <div class="st-when"><div class="d">{{ b.start_at|bk_day }}</div><div class="t">{{ b|bk_range }}</div></div>
     </div>
-    <div class="bk-tear" aria-hidden="true"></div>
-    <div class="bk-ticket-body">
-      <div class="bk-ref-label">Booking reference</div>
-      <div class="bk-ref">{{ b.reference }}</div>
-      <div class="bk-kv">
+    <div class="st-tear" aria-hidden="true"></div>
+    <div class="st-ticket-body">
+      {% if qr %}<div class="st-qr">{{ qr }}</div>{% endif %}
+      <div class="st-ref-label">Reference</div>
+      <div class="st-ref">{{ b.reference }}</div>
+      <div class="st-kv">
         <div><small>Duration</small><b>{{ b.duration_minutes|bk_mins }}</b></div>
         <div><small>Slots</small><b>{{ b.slot_count }}</b></div>
-        <div><small>Amount</small><b class="bk-num">{{ b.amount|inr }}</b></div>
+        <div><small>Amount</small><b class="st-num">{{ b.amount|inr }}</b></div>
         <div><small>Payment</small><b>{% if b.payment_status == 'PAID' %}Paid{% else %}Pay at turf{% endif %}</b></div>
       </div>
-      {% if b.note %}<p class="bk-note" style="margin-top:16px"><span>📝</span><span>{{ b.note }}</span></p>{% endif %}
-      <div class="bk-status">
-        {% if b.is_cancelled %}<span class="bk-tag bk-tag-red">Cancelled{% if b.cancelled_by == 'TURF' %} by turf{% endif %}</span>{% if b.cancel_reason %}<span class="bk-muted" style="font-size:13px">{{ b.cancel_reason }}</span>{% endif %}
-        {% elif b.has_ended %}<span class="bk-tag">Played</span>
-        {% elif b.in_progress %}<span class="bk-tag bk-tag-green"><i class="bk-dot"></i>Happening now</span>
-        {% else %}<span class="bk-tag bk-tag-green"><i class="bk-dot"></i>Confirmed</span>{% endif %}
+      {% if b.note %}<p class="st-note" style="margin-top:16px">{{ b.note }}</p>{% endif %}
+      <div class="st-status">
+        {% if b.is_cancelled %}<span class="st-tag st-tag-bad">Cancelled{% if b.cancelled_by == 'TURF' %} by turf{% endif %}</span>{% if b.cancel_reason %}<span class="st-muted" style="font-size:13px">{{ b.cancel_reason }}</span>{% endif %}
+        {% elif b.is_scanned %}<span class="st-tag st-tag-ok">Checked in · {{ b.scanned_at|bk_time }}</span>
+        {% elif b.has_ended %}<span class="st-tag">Played</span>
+        {% elif b.in_progress %}<span class="st-tag st-tag-ok"><i class="st-dot"></i>Happening now</span>
+        {% else %}<span class="st-tag st-tag-ok"><i class="st-dot"></i>Confirmed</span>{% endif %}
       </div>
     </div>
   </article>
 
   {% if b.is_upcoming %}
-  <div class="bk-action-list">
-    <a class="bk-action" href="{% url 'booking_ics' b.reference %}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span>Add to calendar</span></a>
-    <a class="bk-action" href="{{ turf.directions_url }}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.3"/></svg><span>Directions</span></a>
-    {% if turf.contact_phone %}<a class="bk-action" href="tel:{{ turf.contact_phone }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"/></svg><span>Call the turf</span></a>{% endif %}
-    <button type="button" class="bk-action" data-bk-share="{{ share_text }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M8 8l4-4 4 4"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg><span>Share with your squad</span></button>
-    <a class="bk-action" href="{{ host_url }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><path d="M17 8v6M14 11h6"/></svg><span>Find players for this game</span></a>
+  <div class="st-action-list">
+    <a class="st-action" href="{% url 'booking_ics' b.reference %}"><svg><use href="#i-book"/></svg><span>Add to calendar</span></a>
+    <a class="st-action" href="{{ turf.directions_url }}" target="_blank" rel="noopener"><svg><use href="#i-pin"/></svg><span>Directions</span></a>
+    {% if turf.contact_phone %}<a class="st-action" href="tel:{{ turf.contact_phone }}"><svg><use href="#i-user"/></svg><span>Call the turf</span></a>{% endif %}
+    <button type="button" class="st-action" data-st-share="{{ share_text }}"><svg><use href="#i-arrow"/></svg><span>Share with your squad</span></button>
+    <a class="st-action" href="{{ host_url }}"><svg><use href="#i-players"/></svg><span>Find players for this game</span></a>
     {% if b.player_can_cancel %}
-    <form method="post" action="{% url 'booking_cancel' b.reference %}" data-confirm-title="Cancel this booking?" data-confirm-body="The slot goes back on sale straight away. You can cancel free until {{ b.cancel_deadline|bk_time }} on {{ b.cancel_deadline|bk_day }}." data-confirm-label="Cancel booking" data-danger>
-      {% csrf_token %}<button type="submit" class="bk-action danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg><span>Cancel booking</span></button>
+    <form method="post" action="{% url 'booking_cancel' b.reference %}" data-confirm-title="Cancel this booking?" data-confirm-body="The slot goes back on sale. Free until {{ b.cancel_deadline|bk_time }}, {{ b.cancel_deadline|bk_day }}." data-confirm-label="Cancel booking" data-danger>
+      {% csrf_token %}<button type="submit" class="st-action danger"><span>Cancel booking</span></button>
     </form>
-    {% else %}<div class="bk-action" style="cursor:default;color:var(--label-2);font-size:14px"><span>Free cancellation has closed{% if turf.contact_phone %} — please call the turf to change this booking{% endif %}.</span></div>{% endif %}
+    {% else %}<p class="st-action st-muted" style="font-size:14px">Free cancellation has closed{% if turf.contact_phone %}. Call the turf to change this booking{% endif %}.</p>{% endif %}
   </div>
-  {% if b.player_can_cancel %}<p class="bk-sub" style="text-align:center;font-size:13px;margin-top:12px">Free cancellation until {{ b.cancel_deadline|bk_time }}, {{ b.cancel_deadline|bk_day }}.</p>{% endif %}
+  {% if b.player_can_cancel %}<p class="st-sub" style="text-align:center;font-size:13px;margin-top:12px">Free cancellation until {{ b.cancel_deadline|bk_time }}, {{ b.cancel_deadline|bk_day }}.</p>{% endif %}
   {% elif b.is_cancelled %}
-  <div style="text-align:center;margin-top:20px"><a class="bk-btn" href="{% url 'book_turf' turf.slug %}">Book another slot</a></div>
+  <div style="text-align:center;margin-top:20px"><a class="st-btn" href="{% url 'book_turf' turf.slug %}">Book another slot</a></div>
   {% endif %}
-  <div style="height:40px"></div>
+  <div class="st-spacer"></div>
 </div>
 {% include 'core/booking/_sheet.html' %}
 {% endblock %}

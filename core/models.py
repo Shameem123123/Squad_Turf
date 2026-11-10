@@ -250,6 +250,7 @@ class Match(models.Model):
 
     class Meta:
         ordering = ['match_time']
+        indexes = [models.Index(fields=['status', 'match_time'], name='match_status_time_idx')]
 
     def __str__(self):
         return f"{self.turf.name} — {self.players_needed} needed ({self.status})"
@@ -377,6 +378,9 @@ class Notification(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['recipient', '-created_at'], name='notif_recipient_created_idx'),
+        ]
 
     def __str__(self):
         return f"To {self.recipient.username}: {self.message}"
@@ -520,6 +524,9 @@ class Booking(models.Model):
     cancelled_by = models.CharField(max_length=10, choices=CancelledBy.choices, blank=True)
     cancel_reason = models.CharField(max_length=255, blank=True)
     cancelled_at = models.DateTimeField(null=True, blank=True)
+    scanned_at = models.DateTimeField(
+        null=True, blank=True, help_text="When the turf scanned this ticket at the gate."
+    )
     reminder_sent = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -568,6 +575,10 @@ class Booking(models.Model):
     @property
     def is_cancelled(self):
         return self.status == self.Status.CANCELLED
+
+    @property
+    def is_scanned(self):
+        return self.scanned_at is not None
 
     @property
     def has_ended(self):

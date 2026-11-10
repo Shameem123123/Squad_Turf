@@ -10,8 +10,9 @@ urlpatterns = [
     path('verify/resend/', views.resend_otp, name='resend_otp'),
     path('logout/', views.logout_view, name='logout'),
 
-    # Feed & turf discovery
-    path('', views.feed, name='feed'),
+    # Home, find players & turf discovery
+    path('', views.home, name='home'),
+    path('players/', views.feed, name='feed'),
     path('turfs/', views.turf_directory, name='turf_directory'),
     path('turfs/<slug:slug>/', views.turf_detail, name='turf_detail'),
     path('t/<slug:slug>/', views.turf_landing, name='turf_landing'),

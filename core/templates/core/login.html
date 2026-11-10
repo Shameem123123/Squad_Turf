@@ -1,38 +1,17 @@
 {% extends 'core/base.html' %}
 {% block title %}Log in — SquadTurf{% endblock %}
-
 {% block content %}
-<div class="max-w-md mx-auto mt-4 sm:mt-10">
-    <div class="text-center mb-6">
-        <span class="inline-flex h-10 w-10 rounded-full bg-pitch-900 items-center justify-center mb-3">
-            <span class="h-2.5 w-2.5 rounded-full bg-floodlight-400"></span>
-        </span>
-        <h1 class="font-display font-bold text-2xl text-ink-900">Welcome back</h1>
-        <p class="text-ink-500 text-sm mt-1">Log in with your mobile number and password.</p>
-    </div>
-
-    <form method="POST" class="bg-white border border-ink-900/10 rounded-2xl p-6 shadow-sm space-y-4">
-        {% csrf_token %}
-
-        <div>
-            <label for="{{ form.phone.id_for_label }}" class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Mobile number</label>
-            {{ form.phone }}
-            {% for error in form.phone.errors %}<p class="text-xs text-rose-600 mt-1">{{ error }}</p>{% endfor %}
-        </div>
-
-        <div>
-            <label for="{{ form.password.id_for_label }}" class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Password</label>
-            {{ form.password }}
-            {% for error in form.password.errors %}<p class="text-xs text-rose-600 mt-1">{{ error }}</p>{% endfor %}
-        </div>
-
-        <button type="submit" class="w-full bg-pitch-900 hover:bg-pitch-700 text-chalk-50 font-bold text-sm py-3 rounded-xl transition-colors">
-            Log in
-        </button>
-
-        <p class="text-center text-sm text-ink-500 pt-1">
-            New here? <a href="{% url 'signup' %}" class="font-semibold text-pitch-700 hover:underline">Create an account</a>
-        </p>
-    </form>
+<div class="st st-narrow" style="margin-top:24px">
+  <h1 class="st-title" style="font-size:32px">Welcome back</h1>
+  <p class="st-sub">Log in with your mobile number.</p>
+  <form method="post" class="st-form-card" style="margin-top:18px">
+    {% csrf_token %}{% if request.GET.next %}<input type="hidden" name="next" value="{{ request.GET.next }}">{% endif %}
+    <label class="st-field"><span>Mobile number</span>{{ form.phone }}</label>
+    {% for e in form.phone.errors %}<p class="st-err">{{ e }}</p>{% endfor %}
+    <label class="st-field"><span>Password</span>{{ form.password }}</label>
+    {% for e in form.password.errors %}<p class="st-err">{{ e }}</p>{% endfor %}
+    <button class="st-btn st-btn-block st-btn-lg" type="submit" style="margin-top:8px">Log in</button>
+  </form>
+  <p class="st-sub" style="text-align:center;margin-top:16px">New here? <a class="st-link" href="{% url 'signup' %}">Create an account</a></p>
 </div>
 {% endblock %}

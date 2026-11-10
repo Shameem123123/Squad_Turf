@@ -1,18 +1,13 @@
-{% load booking_tags %}
-<div class="bk-row" style="align-items:flex-start;margin-bottom:2px">
+{% load booking_tags core_extras %}
+<div class="st-row" style="align-items:flex-start">
   <div>
-    <p class="bk-eyebrow">Turf console</p>
-    <h1 class="bk-title" style="font-size:clamp(26px,5vw,34px)">{{ turf.name }}</h1>
-    <p class="bk-sub" style="margin-top:2px">{{ turf.location_name }}</p>
+    <p class="st-eyebrow">Turf console</p>
+    <h1 class="st-title" style="font-size:clamp(26px,5vw,34px)">{{ turf.name }}</h1>
+    <p class="st-sub" style="margin-top:2px">{{ turf.location_name }}</p>
   </div>
-  <span class="bk-live" style="margin-top:6px"><i></i><span id="bk-live-time">Live</span></span>
+  <span class="st-live" style="margin-top:6px"><i></i><span id="st-live-time">Live</span></span>
 </div>
-<div class="bk-actions" style="margin-top:8px">
-  <a class="bk-btn bk-btn-soft bk-btn-sm" href="{% url 'book_turf' turf.slug %}">View public page</a>
-  {% if managed_turfs|length > 1 or user.is_superuser %}<a class="bk-btn bk-btn-soft bk-btn-sm" href="{% url 'manage_home' %}?all=1">Switch turf</a>{% endif %}
+<div class="st-actions" style="margin-top:8px">
+  <a class="st-btn st-btn-soft st-btn-sm" href="{% url 'book_turf' turf.slug %}">Public page</a>
+  {% if managed_turfs|length > 1 or user.is_superuser %}<a class="st-btn st-btn-soft st-btn-sm" href="{% url 'manage_home' %}?all=1">Switch turf</a>{% endif %}
 </div>
-<nav class="bk-subnav" aria-label="Console sections">
-  <a class="{% if tab == 'schedule' %}is-active{% endif %}" href="{% url 'manage_schedule' turf.slug %}">Schedule</a>
-  <a class="{% if tab == 'bookings' %}is-active{% endif %}" href="{% url 'manage_bookings' turf.slug %}">Bookings</a>
-  <a class="{% if tab == 'settings' %}is-active{% endif %}" href="{% url 'manage_settings' turf.slug %}">Settings</a>
-</nav>

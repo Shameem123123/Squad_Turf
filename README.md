@@ -1,13 +1,44 @@
 # SquadTurf
-**Developed by Shameemul Hassan P**
 
 Post a match. Fill your squad. Kick off in minutes.
 
-SquadTurf is a Django app for organising pickup sports matches. Hosts post
-an open request for players (**Urgent** — playing within the hour — or
-**Scheduled** for today/tomorrow), players request to join, hosts accept
-or decline, and everyone gets notified in-app *and* via Web Push —
-even when SquadTurf isn't open in a tab.
+SquadTurf is a Django app with two jobs:
+
+1. **Book a turf** (primary) — browse turfs, pick a slot, get a ticket with a
+   QR code. Turf managers scan it at the gate.
+2. **Find players** (secondary) — host a game or request to join one. Hosts
+   post an **Urgent** (within ~2.5 h) or **Scheduled** (today/tomorrow) game,
+   players request to join, hosts accept or decline.
+
+Everyone is notified in-app *and* via Web Push, even when SquadTurf isn't open
+in a tab.
+
+## App map
+
+| Who | Tabs | Notes |
+|---|---|---|
+| Player | **Home** · **Book** · **Players** · **Profile** | Home has two buttons: *Book a turf* and *Find players*. **My bookings** lives inside the Book tab. Hosted / Joined games live inside the Players tab. |
+| Turf manager | **Schedule** · **Bookings** · **Scan** · **Settings** | No play ratings, attendance stats or match features. They never get match alerts. |
+
+**Design:** one stylesheet (`core/static/core/css/app.css`), system fonts, no CDN
+and no build step. Turf green is the brand colour and marks everything about
+booking; indigo marks finding players; amber and red are only for status
+(due, cancelled). Each turf cover gets its own hue. Loading feedback is a thin
+top progress bar, button spinners and skeleton placeholders.
+
+**Tickets and scanning:** a ticket's QR holds `SQT1.<reference>.<signature>`,
+signed with `SECRET_KEY`, so a code can't be forged from a guessed reference.
+The manager's **Scan** tab reads it with the phone camera (needs HTTPS, and a
+browser with `BarcodeDetector` such as Chrome on Android) and also accepts a
+typed reference in any browser. Only the first scan admits a ticket; the
+manager can also tick off cash payment at the gate. The QR encoder is a small
+dependency-free module (`core/qr.py`).
+
+**Notifications:** kept for 7 days, then deleted (opportunistically about once
+an hour; `python manage.py purge_notifications` is an optional cron). Push is
+sent from a small thread pool so a request never waits on it
+(`PUSH_ASYNC=False` to send inline) and is retried by the push service for an
+hour if a phone is asleep.
 
 ## Features
 
@@ -160,19 +191,29 @@ squadturf/
     │   ├── seed_turfs.py
     │   ├── generate_vapid_keys.py
     │   └── send_match_reminders.py  # run on a cron schedule
-    ├── templatetags/core_extras.py  # relative_day, day_bucket, stars_range
-    ├── templates/core/              # feed, match detail, dashboards, auth, profile
-    └── static/core/                 # custom.css (design system), app.js, push.js, sw.js
+    ├── qr.py                        # dependency-free QR encoder (SVG)
+    ├── booking_logic.py / booking_views.py   # slots, tickets, scanning, console
+    ├── templatetags/                # core_extras, booking_tags
+    ├── templates/core/              # home, players, match, auth, profile, booking/
+    └── static/core/                 # css/app.css (the design system)
+                                     # js/app.js (progress, spinners, push prompt)
+                                     # js/booking.js, scanner.js, live.js, push.js, sw.js
 ```
 
 ## Notes on the design
 
-The visual language is a "matchday ticket": each match on the feed
-renders as a stadium ticket stub, with a perforated tear-line separating
-the match info from its status. Scoreboard-style monospace type
-(JetBrains Mono) is used for times, counts, and phone numbers; headings
-use Space Grotesk; body copy uses Inter. Colours are turf green +
-floodlight amber rather than a generic SaaS palette.
+Apple-style restraint with a clear colour identity: translucent top and tab
+bars, large rounded cards, spring-like transitions that respect *reduce
+motion*. Colours live as tokens at the top of `app.css` (`--brand`,
+`--players`, `--deep`), so re-theming is a one-place change.
+
+## Settings worth knowing
+
+| Env var | Purpose |
+|---|---|
+| `DJANGO_DEBUG` | `False` in production (also turns on secure cookies + HSTS) |
+| `DJANGO_ALLOWED_HOSTS` | Comma-separated hosts, e.g. `squadturf.onrender.com` (default `*`) |
+| `PUSH_ASYNC` | `True` (default) sends push from a thread pool |
 
 ## Extending it
 
@@ -247,11 +288,11 @@ Players can book real time slots at turfs; turf owners get their own console. It
 | | Player | Turf admin |
 |---|---|---|
 | Created by | Sign-up | You, in `/admin/` |
-| Lands on | Feed | `/manage/` console |
+| Lands on | Home | `/manage/` console |
 | Can | Browse, book, cancel (within window), host/join matches | See live schedule, add walk-ins, block slots / close a day, cancel bookings, mark paid, edit price & details, pause bookings |
 
 ### Player flow
-`/book/` → pick a turf → pick a date → tap slots (tap the next slot to extend, up to the turf's limit) → confirm → ticket with reference, calendar file, directions, share, and "find players for this game" (hands off to your existing host-a-match flow). Availability is **live**: the grid refreshes every few seconds, and a slot someone else just took is released from your selection with a heads-up. Payment is **pay at the turf** for now; the turf admin marks bookings paid.
+`/book/` → pick a turf → pick a date → tap slots (tap the next slot to extend, up to the turf's limit) → confirm → ticket with QR code, calendar file, directions, share, and "find players for this game" (hands off to the host-a-game flow). Availability is **live**: the grid refreshes every few seconds (cheap conditional requests that answer `304` when nothing changed), and a slot someone else just took is released from your selection with a heads-up. Payment is **pay at the turf** for now; the turf admin marks bookings paid.
 
 ### Rules enforced by the server
 * A slot can never be double-booked — checked in a locked transaction **and** by a database unique constraint.
@@ -266,4 +307,7 @@ Players can book real time slots at turfs; turf owners get their own console. It
 ```
 
 ### Tests
-`python manage.py test core.tests_bookings`
+`python manage.py test core`
+
+Covers bookings, QR ticket signing, the scanner (valid / early / used /
+cancelled / wrong turf / forged), notification expiry, and the new flow.

@@ -1,0 +1,5 @@
+{% load core_extras %}
+<nav class="st-seg" aria-label="Booking sections">
+  <a class="{% active 'book_directory' %}" href="{% url 'book_directory' %}">Turfs</a>
+  <a class="{% active 'my_bookings' %}" href="{% url 'my_bookings' %}">My bookings{% if upcoming_count %} · {{ upcoming_count }}{% endif %}</a>
+</nav>

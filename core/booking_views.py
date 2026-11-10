@@ -1,5 +1,6 @@
 """Views for turf slot booking: the player flow (browse -> pick -> ticket) and
 the turf-admin console (schedule, walk-ins, blocks, bookings, settings)."""
+import hashlib
 import json
 from datetime import timedelta
 from functools import wraps
@@ -14,9 +15,11 @@ from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.safestring import mark_safe
 from django.views.decorators.http import require_POST
 
 from . import booking_logic as bl
+from . import qr
 from .booking_forms import TurfSettingsForm
 from .models import Booking, Turf
 
@@ -88,6 +91,23 @@ def console_view(view):
     return wrapper
 
 
+def _json_with_etag(request, payload):
+    """JSON that browsers revalidate cheaply: an unchanged day answers 304 with no body.
+    `server_time` is left out of the hash because it changes every second."""
+    stable = {k: v for k, v in payload.items() if k != 'server_time'}
+    digest = hashlib.md5(
+        json.dumps(stable, sort_keys=True, separators=(',', ':')).encode(), usedforsecurity=False
+    ).hexdigest()[:20]
+    etag = f'"{digest}"'
+    if request.headers.get('If-None-Match') == etag:
+        resp = HttpResponse(status=304)
+    else:
+        resp = JsonResponse(payload)
+    resp['ETag'] = etag
+    resp['Cache-Control'] = 'no-cache'
+    return resp
+
+
 def _back_to_schedule(turf, day):
     return redirect(f"{reverse('manage_schedule', args=[turf.slug])}?date={day.isoformat()}")
 
@@ -103,14 +123,28 @@ def book_directory(request):
     all_sports = sorted({s for t in turfs for s in t.sport_list})
     if q:
         turfs = turfs.filter(Q(name__icontains=q) | Q(location_name__icontains=q) | Q(address__icontains=q))
-    cards = []
-    for t in turfs:
-        if sport and sport.lower() not in [s.lower() for s in t.sport_list]:
-            continue
-        cards.append({'turf': t, 'free_today': bl.free_slots_today(t), 'open_now': bl.is_open_now(t)})
+    shown = [
+        t for t in turfs
+        if not sport or sport.lower() in [x.lower() for x in t.sport_list]
+    ]
+    free = bl.free_slots_today_many(shown)
+    cards = [
+        {'turf': t, 'free_today': free.get(t.pk, 0), 'open_now': bl.is_open_now(t)}
+        for t in shown
+    ]
     return render(request, 'core/booking/directory.html', {
         'cards': cards, 'q': q, 'sport': sport, 'all_sports': all_sports,
+        'section': 'turfs', 'upcoming_count': _upcoming_count(request.user),
     })
+
+
+def _upcoming_count(user):
+    if not user.is_authenticated:
+        return 0
+    return Booking.objects.filter(
+        user=user, source=Booking.Source.ONLINE,
+        status=Booking.Status.CONFIRMED, end_at__gt=timezone.now(),
+    ).count()
 
 
 def book_turf(request, slug):
@@ -130,9 +164,7 @@ def book_slots_api(request, slug):
     day = bl.parse_day(request.GET.get('date'))
     if day is None or not (today <= day <= today + timedelta(days=turf.advance_days)):
         return JsonResponse({'error': 'bad date'}, status=400)
-    resp = JsonResponse(bl.availability_payload(turf, day, user=request.user))
-    resp['Cache-Control'] = 'no-store'
-    return resp
+    return _json_with_etag(request, bl.availability_payload(turf, day, user=request.user))
 
 
 @login_required
@@ -142,7 +174,7 @@ def book_confirm(request, slug):
     day = bl.parse_day(request.POST.get('date'), bl.local_today())
     back = f"{reverse('book_turf', args=[turf.slug])}?date={day.isoformat()}"
     if bl.is_turf_admin(request.user):
-        messages.error(request, "Turf admin accounts manage turfs — use a player account to book.")
+        messages.error(request, "Turf accounts manage turfs. Use a player account to book.")
         return redirect(back)
     try:
         booking = bl.create_booking(
@@ -165,7 +197,7 @@ def my_bookings(request):
     past = mine.exclude(status=Booking.Status.CONFIRMED, end_at__gt=now).order_by('-start_at')
     return render(request, 'core/booking/my_bookings.html', {
         'tab': tab, 'bookings': upcoming if tab == 'upcoming' else past[:50],
-        'upcoming_count': upcoming.count(),
+        'upcoming_count': upcoming.count(), 'section': 'mine',
     })
 
 
@@ -179,10 +211,18 @@ def _own_booking_or_404(request, ref):
 @login_required
 def booking_detail(request, ref):
     booking = _own_booking_or_404(request, ref)
-    share = (f"I've booked {booking.turf.name} — {bl.human_when(booking.start_at, booking.end_at)}. "
-             f"Join me! 🏟️⚽ {request.build_absolute_uri(reverse('book_turf', args=[booking.turf.slug]))}")
+    link = request.build_absolute_uri(reverse('book_turf', args=[booking.turf.slug]))
+    share = (
+        f"I've booked {booking.turf.name}, {bl.human_when(booking.start_at, booking.end_at)}. "
+        f"Join me: {link}"
+    )
+    # Only a live ticket gets a code; cancelled or finished bookings have nothing to scan.
+    code = None
+    if booking.is_upcoming and booking.source == Booking.Source.ONLINE:
+        code = mark_safe(qr.svg(bl.ticket_token(booking), label=f"Ticket {booking.reference}"))
     return render(request, 'core/booking/ticket.html', {
-        'b': booking, 'turf': booking.turf, 'is_new': request.GET.get('new') == '1', 'share_text': share,
+        'b': booking, 'turf': booking.turf, 'is_new': request.GET.get('new') == '1',
+        'share_text': share, 'qr': code,
         'host_url': f"{reverse('create_match')}?turf={booking.turf_id}",
     })
 
@@ -192,11 +232,11 @@ def booking_detail(request, ref):
 def booking_cancel(request, ref):
     booking = _own_booking_or_404(request, ref)
     if not booking.player_can_cancel:
-        messages.error(request, "The free-cancellation window has closed — please call the turf.")
+        messages.error(request, "Free cancellation has closed. Please call the turf.")
     else:
         bl.cancel_booking(booking, Booking.CancelledBy.PLAYER)
         bl.notify_booking_cancelled(booking, Booking.CancelledBy.PLAYER)
-        messages.success(request, "Booking cancelled. The slot is open for others again.")
+        messages.success(request, "Booking cancelled.")
     return redirect('booking_detail', ref=booking.reference)
 
 
@@ -239,14 +279,56 @@ def manage_schedule(request, turf):
 
 
 @console_view
+def manage_scan(request, turf):
+    cfg = {
+        'verifyUrl': reverse('manage_scan_api', args=[turf.slug]),
+        'admitUrl': reverse('manage_scan_admit', args=[turf.slug]),
+    }
+    return render(request, 'core/booking/manage_scan.html', {
+        'turf': turf, 'tab': 'scan', 'cfg': cfg,
+    })
+
+
+@console_view
+@require_POST
+def manage_scan_api(request, turf):
+    """Look a ticket up. Accepts a scanned QR payload, or a typed reference (manual=1)."""
+    booking, state = bl.find_ticket(
+        turf, request.POST.get('code', ''), manual=request.POST.get('manual') == '1'
+    )
+    if state == 'ok':
+        state = bl.scan_state(booking)
+    resp = JsonResponse(bl.scan_payload(booking, state))
+    resp['Cache-Control'] = 'no-store'
+    return resp
+
+
+@console_view
+@require_POST
+def manage_scan_admit(request, turf):
+    """Let a ticket holder in. Only the first scan succeeds."""
+    booking = get_object_or_404(
+        Booking, turf=turf, reference=request.POST.get('ref', '').upper(),
+        source__in=[Booking.Source.ONLINE, Booking.Source.WALKIN],
+    )
+    collect = request.POST.get('collect') == '1'
+    if bl.scan_state(booking) == 'ok' and bl.admit_booking(booking, collect):
+        return JsonResponse({'ok': True, 'message': 'Admitted'})
+    booking.refresh_from_db()
+    state = bl.scan_state(booking)
+    if state == 'ok':          # another phone admitted it a moment before this one
+        state = 'used'
+        booking.scanned_at = booking.scanned_at or timezone.now()
+    return JsonResponse({'ok': False, **bl.scan_payload(booking, state)}, status=409)
+
+
+@console_view
 def manage_slots_api(request, turf):
     day = bl.parse_day(request.GET.get('date'))
     today = bl.local_today()
     if day is None or not (today - timedelta(days=bl.CONSOLE_DAYS_BACK) <= day <= today + timedelta(days=turf.advance_days)):
         return JsonResponse({'error': 'bad date'}, status=400)
-    resp = JsonResponse(bl.availability_payload(turf, day, admin=True))
-    resp['Cache-Control'] = 'no-store'
-    return resp
+    return _json_with_etag(request, bl.availability_payload(turf, day, admin=True))
 
 
 @console_view
@@ -288,10 +370,10 @@ def manage_settings(request, turf):
             form = TurfSettingsForm(request.POST, instance=turf)
             if form.is_valid():
                 form.save()
-                messages.success(request, "Turf details saved.")
+                messages.success(request, "Saved.")
                 return redirect('manage_settings', slug=turf.slug)
     for f in pw_form.fields.values():
-        f.widget.attrs['class'] = 'bk-input'
+        f.widget.attrs['class'] = 'st-input'
         f.help_text = ''
     return render(request, 'core/booking/manage_settings.html', {
         'turf': turf, 'tab': 'settings', 'form': form, 'pw_form': pw_form,
@@ -308,7 +390,7 @@ def manage_walkin(request, turf):
     day = _post_day(request)
     name = (request.POST.get('name') or '').strip()
     if not name:
-        messages.error(request, "Add a name for the walk-in booking.")
+        messages.error(request, "Add a name for the walk-in.")
         return _back_to_schedule(turf, day)
     try:
         b = bl.create_booking(
@@ -316,7 +398,7 @@ def manage_walkin(request, turf):
             source=Booking.Source.WALKIN, guest_name=name, guest_phone=request.POST.get('phone', ''),
             paid=request.POST.get('paid') == 'on',
         )
-        messages.success(request, f"Walk-in booked for {name} · {bl.fmt_range(b.start_at, b.end_at)}.")
+        messages.success(request, f"Walk-in added: {name}, {bl.fmt_range(b.start_at, b.end_at)}.")
     except bl.BookingError as exc:
         messages.error(request, str(exc))
     return _back_to_schedule(turf, day)
@@ -330,7 +412,7 @@ def manage_block(request, turf):
     if done:
         messages.success(request, f"Blocked {done} slot{'s' if done != 1 else ''}.")
     if skipped:
-        messages.error(request, f"{skipped} slot{'s' if skipped != 1 else ''} couldn't be blocked (already taken).")
+        messages.error(request, f"{skipped} slot{'s' if skipped != 1 else ''} already taken.")
     return _back_to_schedule(turf, day)
 
 
@@ -349,7 +431,7 @@ def manage_unblock(request, turf):
 def manage_close_day(request, turf):
     day = _post_day(request)
     done, _ = bl.close_day(turf, day)
-    messages.success(request, f"Closed {bl.fmt_day(day)} — {done} open slot{'s' if done != 1 else ''} blocked.")
+    messages.success(request, f"{bl.fmt_day(day)} closed ({done} slot{'s' if done != 1 else ''}).")
     return _back_to_schedule(turf, day)
 
 
@@ -358,7 +440,7 @@ def manage_close_day(request, turf):
 def manage_reopen_day(request, turf):
     day = _post_day(request)
     count = bl.reopen_day(turf, day)
-    messages.success(request, f"Reopened {bl.fmt_day(day)} — {count} slot{'s' if count != 1 else ''} released.")
+    messages.success(request, f"{bl.fmt_day(day)} reopened ({count} slot{'s' if count != 1 else ''}).")
     return _back_to_schedule(turf, day)
 
 

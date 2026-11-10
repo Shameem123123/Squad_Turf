@@ -216,7 +216,7 @@ class Views(BookingBase):
         self.assertEqual(r.url, '/book/arena/')
         self.client.logout()
         r = self.client.post(reverse('login') + '?next=https://evil.example/', {'phone': '9000000001', 'password': 'pass12345'})
-        self.assertEqual(r.url, reverse('feed'))
+        self.assertEqual(r.url, reverse('home'))
 
     def test_console_permissions(self):
         url = reverse('manage_schedule', args=['arena'])
@@ -256,9 +256,11 @@ class Views(BookingBase):
         for name in ('turf_directory', 'login', 'signup'):
             self.assertEqual(self.client.get(reverse(name)).status_code, 200)
         self.client.login(username='asha', password='pass12345')
-        for name in ('feed', 'my_hosted', 'my_joined', 'notification_list', 'profile', 'create_match', 'my_bookings'):
+        for name in ('home', 'feed', 'my_hosted', 'my_joined', 'notification_list', 'profile',
+                     'create_match', 'my_bookings'):
             self.assertEqual(self.client.get(reverse(name)).status_code, 200, name)
-        self.assertContains(self.client.get(reverse('feed')), 'Book a turf')
+        self.assertContains(self.client.get(reverse('home')), 'Book a turf')
+        self.assertContains(self.client.get(reverse('home')), 'Find players')
         self.assertContains(self.client.get(reverse('turf_detail', args=['arena'])), 'Book a slot')
 
 

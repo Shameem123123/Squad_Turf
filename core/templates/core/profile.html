@@ -1,92 +1,41 @@
 {% extends 'core/base.html' %}
-{% block title %}My profile — SquadTurf{% endblock %}
-
+{% block title %}Profile — SquadTurf{% endblock %}
 {% block content %}
-<div class="max-w-lg mx-auto">
-    <div class="flex items-center gap-4 mb-6">
-        <span class="flex items-center justify-center h-14 w-14 rounded-full bg-pitch-900 text-chalk-50 font-display font-bold text-lg">{{ profile.initials }}</span>
-        <div>
-            <h1 class="font-display font-bold text-2xl text-ink-900">{{ profile.display_name }}</h1>
-            <p class="text-sm text-ink-500">{{ profile.phone }}</p>
-        </div>
-    </div>
+<div class="st st-narrow">
+  <div class="st-person" style="margin-bottom:20px">
+    <span class="st-avatar" style="width:56px;height:56px;font-size:18px">{{ profile.initials }}</span>
+    <div><h1 style="font-size:24px;letter-spacing:-.03em;font-weight:700">{{ profile.display_name }}</h1><p class="st-muted">{{ profile.phone }}{% if is_manager %} · Turf manager{% endif %}</p></div>
+  </div>
 
-    <div class="grid grid-cols-2 gap-3 mb-3">
-        <div class="bg-white border border-ink-900/10 rounded-xl p-4 text-center">
-            <p class="scoreclock text-xl font-bold text-ink-900">{{ stats.hosted_count }}</p>
-            <p class="text-[10px] font-bold uppercase tracking-wide text-ink-500 mt-1">Hosted</p>
-        </div>
-        <div class="bg-white border border-ink-900/10 rounded-xl p-4 text-center">
-            <p class="scoreclock text-xl font-bold text-ink-900">{{ stats.joined_count }}</p>
-            <p class="text-[10px] font-bold uppercase tracking-wide text-ink-500 mt-1">Played</p>
-        </div>
-    </div>
+  {% if stats %}
+  <div class="st-grid-2">
+    <div class="st-stat"><small>Hosted</small><b>{{ stats.hosted_count }}</b></div>
+    <div class="st-stat"><small>Played</small><b>{{ stats.joined_count }}</b></div>
+    <div class="st-stat"><small>Play rating</small><b>{% if stats.average_rating %}★ {{ stats.average_rating }}{% else %}—{% endif %}</b><em>{{ stats.rating_count }} review{{ stats.rating_count|pluralize }}</em></div>
+    <div class="st-stat"><small>Showed up</small><b>{% if stats.reliability_pct is not None %}{{ stats.reliability_pct }}%{% else %}—{% endif %}</b></div>
+  </div>
+  {% endif %}
 
-    {# ---- Play rating vs. attendance rating: two distinct, clearly-labeled ---- #}
-    {# ---- metrics — how they play, and whether they show up as planned. ---- #}
-    <div class="grid grid-cols-2 gap-3 mb-6">
-        <div class="bg-white border border-ink-900/10 rounded-xl p-4">
-            <p class="text-[10px] font-bold uppercase tracking-wide text-ink-500">Play rating</p>
-            <p class="scoreclock text-xl font-bold text-ink-900 mt-1">
-                {% if stats.average_rating %}★ {{ stats.average_rating }}{% else %}—{% endif %}
-            </p>
-            <p class="text-[11px] text-ink-500 mt-0.5">{{ stats.rating_count }} review{{ stats.rating_count|pluralize }}</p>
-        </div>
-        <div class="bg-white border border-ink-900/10 rounded-xl p-4">
-            <p class="text-[10px] font-bold uppercase tracking-wide text-ink-500">Attendance rating</p>
-            <p class="scoreclock text-xl font-bold text-ink-900 mt-1">
-                {% if stats.reliability_pct is not None %}{{ stats.reliability_pct }}%{% else %}—{% endif %}
-            </p>
-            <p class="text-[11px] text-ink-500 mt-0.5">Showed up as planned</p>
-        </div>
-    </div>
+  <div class="st-plain st-row" style="margin-top:12px">
+    <div><b>Push notifications</b><p class="st-muted" style="font-size:13px">{% if push_enabled %}On for this device{% else %}Off for this device{% endif %}</p></div>
+    {% if not push_enabled %}<button type="button" class="st-btn st-btn-sm" data-push-enable>Enable</button>{% else %}<span class="st-tag st-tag-ok">On</span>{% endif %}
+  </div>
 
-    <div class="bg-white border border-ink-900/10 rounded-xl p-4 mb-6 flex items-center justify-between gap-3">
-        <div>
-            <p class="text-sm font-semibold text-ink-900">Push notifications</p>
-            <p class="text-xs text-ink-500 mt-0.5">{% if stats.push_enabled %}Enabled on this device.{% else %}Not enabled on this device yet.{% endif %}</p>
-        </div>
-        {% if not stats.push_enabled %}
-            <button id="profile-push-enable" class="text-xs font-bold text-pitch-700 border border-pitch-600/30 hover:bg-pitch-600/5 px-3 py-1.5 rounded-lg transition-colors">Enable</button>
-        {% else %}
-            <span class="text-xs font-bold text-pitch-600">✓ On</span>
-        {% endif %}
-    </div>
+  <form method="post" class="st-form-card" style="margin-top:12px">
+    {% csrf_token %}
+    <label class="st-field"><span>Name</span>{{ form.name }}</label>
+    {% if not is_manager %}<label class="st-check">{{ form.is_available_for_alerts }} {{ form.is_available_for_alerts.label }}</label>{% endif %}
+    <button class="st-btn st-btn-block" type="submit">Save</button>
+  </form>
 
-    <form method="POST" class="bg-white border border-ink-900/10 rounded-2xl p-6 shadow-sm space-y-4">
-        {% csrf_token %}
-        <div>
-            <label class="block text-xs font-bold uppercase tracking-wide text-ink-500 mb-1.5">Full name</label>
-            {{ form.name }}
-        </div>
-        <label class="flex items-center gap-2 text-sm text-ink-700">
-            {{ form.is_available_for_alerts }}
-            {{ form.is_available_for_alerts.label }}
-        </label>
-        <button type="submit" class="w-full bg-pitch-900 hover:bg-pitch-700 text-chalk-50 font-bold text-sm py-3 rounded-xl transition-colors">
-            Save changes
-        </button>
-    </form>
+  <div class="st-action-list" style="max-width:none">
+    {% if not is_manager %}
+    <a class="st-action" href="{% url 'my_bookings' %}"><svg><use href="#i-book"/></svg><span>My bookings</span></a>
+    <a class="st-action" href="{% url 'notification_list' %}"><svg><use href="#i-bell"/></svg><span>Notifications</span></a>
+    {% else %}
+    <a class="st-action" href="{% url 'manage_home' %}"><svg><use href="#i-book"/></svg><span>Turf console</span></a>
+    {% endif %}
+    <form method="post" action="{% url 'logout' %}" data-no-spinner>{% csrf_token %}<button class="st-action danger" type="submit"><span>Log out</span></button></form>
+  </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-  var btn = document.getElementById('profile-push-enable');
-  if (btn) {
-    btn.addEventListener('click', function () {
-      btn.disabled = true;
-      btn.textContent = 'Enabling…';
-      window.SquadTurfPush.subscribe().then(function (result) {
-        if (result.ok) {
-          window.location.reload();
-        } else {
-          btn.disabled = false;
-          btn.textContent = 'Enable';
-          alert(window.SquadTurfPush.messageFor(result.reason));
-        }
-      });
-    });
-  }
-</script>
 {% endblock %}

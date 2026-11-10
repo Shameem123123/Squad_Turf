@@ -13,18 +13,22 @@ tests all agree on one set of rules:
 Times are always handled as aware datetimes in the project time zone
 (Asia/Kolkata). A slot's identity on the wire is its local ``HH:MM`` start.
 """
+from collections import defaultdict
 from datetime import datetime, time, timedelta, timezone as dt_timezone
 from decimal import Decimal
 
 from django.db import IntegrityError, transaction
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.crypto import constant_time_compare, salted_hmac
 
 from .models import Booking, BookingSlot, Notification, Turf, TurfManager
 from .notifications import notify
 
 MAX_ACTIVE_ONLINE_BOOKINGS = 6   # slot-hoarding guard: upcoming online bookings per player
 CONSOLE_DAYS_BACK = 3            # how far back the turf admin can browse the schedule
+SCAN_EARLY_MINUTES = 60          # tickets can be admitted from this long before the start
+TICKET_PREFIX = 'SQT1'
 
 
 class BookingError(Exception):
@@ -92,12 +96,18 @@ def num(value):
 # ---------------------------------------------------------------------------
 
 def managed_turfs(user):
+    """Turfs this account runs. Cached on the user object for the request, so the
+    navigation, the views and the templates share one query."""
     if not user.is_authenticated:
         return []
-    return [
-        link.turf for link in TurfManager.objects.filter(user=user).select_related('turf')
-        if link.turf.is_active
-    ]
+    cached = getattr(user, '_managed_turfs', None)
+    if cached is None:
+        cached = [
+            link.turf for link in TurfManager.objects.filter(user=user).select_related('turf')
+            if link.turf.is_active
+        ]
+        user._managed_turfs = cached
+    return cached
 
 
 def can_manage(user, turf):
@@ -109,7 +119,7 @@ def can_manage(user, turf):
 
 
 def is_turf_admin(user):
-    return user.is_authenticated and TurfManager.objects.filter(user=user).exists()
+    return bool(managed_turfs(user))
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +197,7 @@ def _booking_payload(b):
         'start': timezone.localtime(b.start_at).strftime('%H:%M'),
         'range': fmt_range(b.start_at, b.end_at),
         'note': b.note,
+        'scanned': b.is_scanned,
     }
 
 
@@ -284,6 +295,26 @@ def free_slots_today(turf, now=None):
         return 0
     bookings = _active_bookings(turf, grid[0][0], grid[-1][1])
     return sum(1 for s, e in grid if not _overlapping(bookings, s, e))
+
+
+def free_slots_today_many(turfs, now=None):
+    """{turf.pk: free slots left today} for many turfs with a single query."""
+    now = now or timezone.now()
+    today = local_today()
+    grids = {t.pk: [(s, e) for s, e in build_grid(t, today) if s > now] for t in turfs}
+    spans = [g for g in grids.values() if g]
+    if not spans:
+        return {t.pk: 0 for t in turfs}
+    low, high = min(g[0][0] for g in spans), max(g[-1][1] for g in spans)
+    by_turf = defaultdict(list)
+    for b in Booking.objects.filter(
+        turf__in=list(turfs), status=Booking.Status.CONFIRMED, start_at__lt=high, end_at__gt=low
+    ):
+        by_turf[b.turf_id].append(b)
+    return {
+        pk: sum(1 for s, e in grid if not _overlapping(by_turf[pk], s, e))
+        for pk, grid in grids.items()
+    }
 
 
 def is_open_now(turf):
@@ -480,7 +511,7 @@ def notify_booking_created(booking):
     when = human_when(booking.start_at, booking.end_at)
     notify(
         booking.user, Notification.Verb.BOOKING_CONFIRMED,
-        f"You're booked! {booking.turf.name} · {when}. Ref {booking.reference}.",
+        f"Booked: {booking.turf.name} · {when}.",
         booking=booking, url=reverse('booking_detail', args=[booking.reference]),
     )
     for manager in _manager_users(booking.turf):
@@ -498,16 +529,120 @@ def notify_booking_cancelled(booking, by, reason=''):
             extra = f" Reason: {reason}." if reason else ""
             notify(
                 booking.user, Notification.Verb.BOOKING_CANCELLED,
-                f"{booking.turf.name} cancelled your booking for {when} (ref {booking.reference}).{extra}",
+                f"{booking.turf.name} cancelled your booking for {when}.{extra}",
                 booking=booking, url=reverse('booking_detail', args=[booking.reference]),
             )
     else:
         for manager in _manager_users(booking.turf):
             notify(
                 manager, Notification.Verb.BOOKING_CANCELLED,
-                f"{booking.customer_name} cancelled {when}. That slot is open again.",
+                f"{booking.customer_name} cancelled {when}. The slot is open again.",
                 booking=booking, url=_console_url(booking.turf, booking),
             )
+
+
+# ---------------------------------------------------------------------------
+# Tickets: signed QR payload + gate scanning
+# ---------------------------------------------------------------------------
+
+def _ticket_sig(reference):
+    return salted_hmac('squadturf.ticket', reference).hexdigest()[:10]
+
+
+def ticket_token(booking):
+    """What the QR code on a ticket holds. The signature means a code can't be
+    forged from a guessed reference."""
+    return f"{TICKET_PREFIX}.{booking.reference}.{_ticket_sig(booking.reference)}"
+
+
+def parse_ticket_token(raw):
+    """Booking reference from a scanned QR payload, or None if it isn't ours / is forged."""
+    parts = (raw or '').strip().split('.')
+    if len(parts) != 3 or parts[0] != TICKET_PREFIX:
+        return None
+    ref = parts[1].upper()
+    return ref if constant_time_compare(parts[2].lower(), _ticket_sig(ref)) else None
+
+
+def find_ticket(turf, raw, manual=False):
+    """Resolve a scanned payload (or, for manual entry, a typed reference) to a
+    booking at `turf`. Returns (booking | None, state) — state is 'ok' or an error."""
+    if manual:
+        ref = (raw or '').strip().upper().replace(' ', '')
+        if ref.startswith(TICKET_PREFIX + '.'):      # the whole code was pasted
+            ref = ref.split('.')[1]
+    else:
+        ref = parse_ticket_token(raw)
+    if not ref:
+        return None, 'invalid'
+    booking = (
+        Booking.objects.filter(reference=ref)
+        .select_related('turf', 'user', 'user__profile').first()
+    )
+    if booking is None or booking.is_blocked:
+        return None, 'invalid'
+    if booking.turf_id != turf.pk:
+        return booking, 'wrong_turf'
+    return booking, 'ok'
+
+
+def scan_state(booking, now=None):
+    """Can this ticket be admitted right now? One of: ok, used, cancelled, ended, early."""
+    now = now or timezone.now()
+    if booking.is_cancelled:
+        return 'cancelled'
+    if booking.is_scanned:
+        return 'used'
+    if booking.end_at <= now:
+        return 'ended'
+    if booking.start_at - timedelta(minutes=SCAN_EARLY_MINUTES) > now:
+        return 'early'
+    return 'ok'
+
+
+SCAN_MESSAGES = {
+    'ok': "Valid ticket",
+    'used': "Already scanned",
+    'cancelled': "Booking was cancelled",
+    'ended': "This slot has ended",
+    'early': "Too early",
+    'wrong_turf': "Ticket is for another turf",
+    'invalid': "Not a valid ticket",
+}
+
+
+def scan_payload(booking, state, now=None):
+    """JSON the scanner screen renders for a looked-up ticket."""
+    out = {'state': state, 'message': SCAN_MESSAGES[state], 'admit': state == 'ok'}
+    if booking is None or state == 'wrong_turf':
+        return out
+    out['booking'] = {
+        'ref': booking.reference,
+        'name': booking.customer_name,
+        'phone': booking.customer_phone,
+        'day': fmt_day(booking.start_at),
+        'range': fmt_range(booking.start_at, booking.end_at),
+        'slots': booking.slot_count,
+        'amount': num(booking.amount),
+        'paid': booking.payment_status == Booking.Payment.PAID,
+    }
+    if state == 'used':
+        out['message'] = f"Already scanned at {fmt_time(booking.scanned_at)}"
+    elif state == 'early':
+        out['message'] = f"Too early · starts {fmt_time(booking.start_at)}"
+    return out
+
+
+def admit_booking(booking, collect_payment=False):
+    """Mark a ticket as scanned. Atomic: two phones scanning the same ticket at once
+    can't both succeed. Returns True if this call admitted it."""
+    now = timezone.now()
+    changed = Booking.objects.filter(
+        pk=booking.pk, status=Booking.Status.CONFIRMED, scanned_at__isnull=True
+    ).update(scanned_at=now)
+    if changed and collect_payment:
+        Booking.objects.filter(pk=booking.pk).update(payment_status=Booking.Payment.PAID)
+    return bool(changed)
 
 
 # ---------------------------------------------------------------------------

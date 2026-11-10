@@ -7,10 +7,7 @@ from .models import Match, Turf
 
 PHONE_RE = re.compile(r'^[6-9]\d{9}$')
 
-INPUT_CLASSES = (
-    'w-full rounded-xl px-4 py-3 text-base text-ink-900 '
-    'placeholder:text-ink-500/60 transition-shadow bg-white'
-)
+INPUT_CLASSES = 'st-input'
 
 
 def _half_hour_slots():
@@ -97,7 +94,7 @@ class OtpForm(forms.Form):
         max_length=6, min_length=6,
         widget=forms.TextInput(attrs={
             'placeholder': '••••••', 'inputmode': 'numeric', 'autocomplete': 'one-time-code',
-            'autofocus': True, 'class': INPUT_CLASSES + ' text-center tracking-[0.5em] font-mono text-lg',
+            'autofocus': True, 'class': INPUT_CLASSES + ' st-otp',
         }),
     )
 
@@ -117,7 +114,7 @@ class MatchForm(forms.ModelForm):
     match_date_choice = forms.ChoiceField(
         choices=DATE_CHOICES, required=False, initial='TODAY',
         label='Which day',
-        widget=forms.RadioSelect(attrs={'class': 'peer sr-only'}),
+        widget=forms.RadioSelect(),
     )
     match_time_slot = forms.ChoiceField(
         choices=TIME_SLOT_CHOICES, required=False,

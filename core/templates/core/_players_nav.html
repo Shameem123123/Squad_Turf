@@ -1,0 +1,10 @@
+{% load core_extras %}
+<div class="st-row" style="align-items:flex-end">
+  <div><p class="st-eyebrow">Players</p><h1 class="st-title" style="font-size:clamp(26px,5vw,34px)">{{ heading }}</h1></div>
+  <a class="st-btn st-btn-sm" href="{% url 'create_match' %}">Host a game</a>
+</div>
+<nav class="st-seg" aria-label="Players sections">
+  <a class="{% active 'feed' %}" href="{% url 'feed' %}">Open games</a>
+  <a class="{% active 'my_hosted' %}" href="{% url 'my_hosted' %}">Hosted</a>
+  <a class="{% active 'my_joined' %}" href="{% url 'my_joined' %}">Joined</a>
+</nav>

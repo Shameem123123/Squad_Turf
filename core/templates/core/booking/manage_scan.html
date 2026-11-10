@@ -1,0 +1,26 @@
+{% extends 'core/base.html' %}
+{% load static %}
+{% block title %}Scan tickets · {{ turf.name }} — SquadTurf{% endblock %}
+{% block content %}
+<div class="st">
+  {% include 'core/booking/_manage_head.html' %}
+  <h2 class="st-h2" style="margin-top:22px">Scan a ticket</h2>
+  <p class="st-sub" style="margin-top:0">Point the camera at the QR code on the player's ticket.</p>
+
+  <div class="st-scan">
+    <video id="scan-video" playsinline muted></video>
+    <div class="st-scan-frame" aria-hidden="true"></div>
+    <div class="st-scan-msg" id="scan-msg">Starting camera…</div>
+  </div>
+
+  <div id="scan-result" class="st-result" hidden aria-live="polite"></div>
+
+  <form id="scan-manual" class="st-form-card" style="max-width:420px;margin:16px auto 0" data-no-spinner>
+    <label class="st-field" style="margin-top:0"><span>Or enter the reference</span>
+      <input name="code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ST7K2M9Q" maxlength="40"></label>
+    <button class="st-btn st-btn-soft st-btn-block" type="submit">Check ticket</button>
+  </form>
+</div>
+{{ cfg|json_script:"scan-cfg" }}
+{% endblock %}
+{% block extra_js %}<script src="{% static 'core/js/scanner.js' %}" defer></script>{% endblock %}

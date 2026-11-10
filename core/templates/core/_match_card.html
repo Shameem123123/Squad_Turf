@@ -1,0 +1,22 @@
+{% load core_extras %}
+<a href="{% url 'match_detail' match.id %}" class="st-item {% if over %}is-dim{% endif %}">
+  <div class="st-match-top">
+    <div style="min-width:0">
+      <h3>{{ match.turf.name }}</h3>
+      <p class="st-muted" style="font-size:13px">{{ match.turf.location_name }}</p>
+    </div>
+    {% if over %}<span class="st-tag">Over</span>
+    {% elif match.status == 'FILLED' %}<span class="st-tag">Full</span>
+    {% elif urgent %}<span class="st-tag st-tag-dark">{{ match.players_needed }} needed</span>
+    {% else %}<span class="st-tag">{{ match.players_needed }} needed</span>{% endif %}
+  </div>
+  <div class="meta">
+    <span class="when" style="margin:0">{{ match.match_time|relative_day }}</span>
+    <span class="st-muted" style="font-size:13px">
+      {% if over %}View
+      {% elif user.is_authenticated and match.host_id == user.id %}You're hosting
+      {% elif match.user_req_status %}{{ match.user_req_status|title }}
+      {% else %}{{ match.cost_display }} · Join{% endif %}
+    </span>
+  </div>
+</a>

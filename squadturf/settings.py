@@ -16,7 +16,7 @@ SECRET_KEY = os.environ.get(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '*']
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get('DJANGO_ALLOWED_HOSTS', '*').split(',') if h.strip()]
 
 # ---------------------------------------------------------------------------
 # Reverse-proxy HTTPS support. Most hosts (Render, Railway, Fly, a Nginx/
@@ -54,6 +54,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    'django.middleware.gzip.GZipMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -77,9 +78,21 @@ TEMPLATES = [
                 'core.context_processors.unread_notifications',
                 'core.context_processors.turf_admin_context',
             ],
+            # Parse templates once, not on every request, in production.
+            'loaders': [
+                ('django.template.loaders.cached.Loader', [
+                    'django.template.loaders.filesystem.Loader',
+                    'django.template.loaders.app_directories.Loader',
+                ]),
+            ] if not DEBUG else [
+                'django.template.loaders.filesystem.Loader',
+                'django.template.loaders.app_directories.Loader',
+            ],
         },
     },
 ]
+# `loaders` and APP_DIRS can't be combined
+TEMPLATES[0].pop('APP_DIRS')
 
 WSGI_APPLICATION = 'squadturf.wsgi.application'
 ASGI_APPLICATION = 'squadturf.asgi.application'
@@ -141,7 +154,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Auth
 LOGIN_URL = 'login'
-LOGIN_REDIRECT_URL = 'feed'
+LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'login'
 
 MESSAGE_TAGS = {
@@ -187,3 +200,21 @@ TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
 TWILIO_FROM_NUMBER = os.environ.get('TWILIO_FROM_NUMBER', '')          # SMS, e.g. +1415XXXXXXX
 TWILIO_WHATSAPP_FROM = os.environ.get('TWILIO_WHATSAPP_FROM', '')      # e.g. whatsapp:+14155238886
 
+
+
+# ---------------------------------------------------------------------------
+# Performance & security
+# ---------------------------------------------------------------------------
+CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
+CONN_HEALTH_CHECKS = True
+# Push is sent from a small thread pool so a request never waits on push services.
+PUSH_ASYNC = os.environ.get('PUSH_ASYNC', 'True') == 'True'
+
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = 'same-origin'
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'

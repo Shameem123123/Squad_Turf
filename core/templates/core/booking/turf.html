@@ -2,47 +2,47 @@
 {% load static booking_tags %}
 {% block title %}Book {{ turf.name }} — SquadTurf{% endblock %}
 {% block content %}
-<div class="bk" id="bk-root" data-turf="{{ turf.name }}" data-ticket="{% url 'booking_detail' 'REF' %}">
-  <a class="bk-back" href="{% url 'book_directory' %}">‹ All turfs</a>
+<div class="st" id="st-root" data-turf="{{ turf.name }}" data-ticket="{% url 'booking_detail' 'REF' %}">
+  <a class="st-back" href="{% url 'book_directory' %}">‹ All turfs</a>
 
-  <div class="bk-hero">{% include 'core/booking/_cover.html' with turf=turf hero=True badges=True open_now=open_now %}</div>
+  <div class="st-hero-card">{% include 'core/booking/_cover.html' with turf=turf hero=True badges=True open_now=open_now %}</div>
 
-  <div class="bk-facts">
-    <div class="bk-fact"><small>Hours</small><b>{{ turf.opens_at|bk_clock }} – {% if turf.closes_at.hour == 0 and turf.closes_at.minute == 0 %}12:00 AM{% else %}{{ turf.closes_at|bk_clock }}{% endif %}</b></div>
-    <div class="bk-fact"><small>Slot</small><b>{{ turf.slot_minutes|bk_mins }}</b></div>
-    <div class="bk-fact"><small>Price</small><b>{{ turf.price_per_slot|inr }}{% if turf.has_peak_pricing %} · peak {{ turf.peak_price_per_slot|inr }}{% endif %}</b></div>
-    {% if turf.sport_list %}<div class="bk-fact"><small>Sports</small><b>{{ turf.sport_list|join:", " }}</b></div>{% endif %}
+  <div class="st-facts">
+    <div class="st-fact"><small>Hours</small><b>{{ turf.opens_at|bk_clock }} – {% if turf.closes_at.hour == 0 and turf.closes_at.minute == 0 %}12:00 AM{% else %}{{ turf.closes_at|bk_clock }}{% endif %}</b></div>
+    <div class="st-fact"><small>Slot</small><b>{{ turf.slot_minutes|bk_mins }}</b></div>
+    <div class="st-fact"><small>Price</small><b>{{ turf.price_per_slot|inr }}{% if turf.has_peak_pricing %} · peak {{ turf.peak_price_per_slot|inr }}{% endif %}</b></div>
+    {% if turf.sport_list %}<div class="st-fact"><small>Sports</small><b>{{ turf.sport_list|join:", " }}</b></div>{% endif %}
   </div>
-  {% if turf.has_peak_pricing %}<p class="bk-note"><span>💡</span><span>Peak pricing applies {% if turf.peak_starts_at %}from {{ turf.peak_starts_at|bk_clock }}{% endif %}{% if turf.peak_starts_at and turf.weekend_is_peak %} and {% endif %}{% if turf.weekend_is_peak %}all day on weekends{% endif %}.</span></p>{% endif %}
+  {% if turf.has_peak_pricing %}<p class="st-note">Peak price applies {% if turf.peak_starts_at %}from {{ turf.peak_starts_at|bk_clock }}{% endif %}{% if turf.peak_starts_at and turf.weekend_is_peak %} and {% endif %}{% if turf.weekend_is_peak %}all day on weekends{% endif %}.</p>{% endif %}
 
-  {% if turf.description %}<div class="bk-section"><h2 class="bk-h2">About</h2><p class="bk-about">{{ turf.description }}</p></div>{% endif %}
-  {% if turf.amenity_list %}<div class="bk-section"><h2 class="bk-h2">Amenities</h2><div class="bk-amen">{% for a in turf.amenity_list %}<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>{{ a }}</span>{% endfor %}</div></div>{% endif %}
+  {% if turf.description %}<div class="st-section"><h2 class="st-h2">About</h2><p class="st-about">{{ turf.description }}</p></div>{% endif %}
+  {% if turf.amenity_list %}<div class="st-section"><h2 class="st-h2">Amenities</h2><div class="st-amen">{% for a in turf.amenity_list %}<span>{{ a }}</span>{% endfor %}</div></div>{% endif %}
 
-  <div class="bk-actions">
-    <a class="bk-btn bk-btn-soft bk-btn-sm" href="{{ turf.directions_url }}" target="_blank" rel="noopener">Directions</a>
-    {% if turf.contact_phone %}<a class="bk-btn bk-btn-soft bk-btn-sm" href="tel:{{ turf.contact_phone }}">Call turf</a>{% endif %}
-    <a class="bk-btn bk-btn-soft bk-btn-sm" href="{% url 'turf_detail' turf.slug %}">Live matches here</a>
+  <div class="st-actions">
+    <a class="st-btn st-btn-soft st-btn-sm" href="{{ turf.directions_url }}" target="_blank" rel="noopener">Directions</a>
+    {% if turf.contact_phone %}<a class="st-btn st-btn-soft st-btn-sm" href="tel:{{ turf.contact_phone }}">Call</a>{% endif %}
+    <a class="st-btn st-btn-soft st-btn-sm" href="{% url 'turf_detail' turf.slug %}">Open games here</a>
   </div>
-  {% if turf.address %}<p class="bk-sub" style="font-size:14px">📍 {{ turf.address }}</p>{% endif %}
+  {% if turf.address %}<p class="st-sub" style="font-size:14px">{{ turf.address }}</p>{% endif %}
 
-  <div class="bk-sticky">
-    <div class="bk-sticky-head"><h2>Pick a slot</h2><span class="bk-live"><i></i><span id="bk-live-time">Live</span></span></div>
-    <div class="bk-dates" id="bk-dates" role="tablist" aria-label="Choose a date"></div>
+  <div class="st-sticky">
+    <div class="st-sticky-head"><h2>Pick a slot</h2><span class="st-live"><i></i><span id="st-live-time">Live</span></span></div>
+    <div class="st-dates" id="st-dates" role="tablist" aria-label="Choose a date"></div>
   </div>
 
-  <div id="bk-paused" class="bk-closed-note" {% if turf.accepts_bookings %}hidden{% endif %}>Online booking is paused right now{% if turf.contact_phone %} — call the turf on <a href="tel:{{ turf.contact_phone }}" style="color:var(--tint);font-weight:600">{{ turf.contact_phone }}</a>{% endif %}.</div>
-  <div id="bk-slots" aria-live="polite"></div>
+  <div id="st-paused" class="st-closed-note" {% if turf.accepts_bookings %}hidden{% endif %}>Online booking is paused{% if turf.contact_phone %}. Call <a class="st-link" href="tel:{{ turf.contact_phone }}">{{ turf.contact_phone }}</a>{% endif %}.</div>
+  <div id="st-slots" aria-live="polite"></div>
 
-  <div class="bk-legend"><span><i></i>Available</span><span><i class="l-sel"></i>Selected</span><span><i class="l-booked"></i>Booked</span><span><i class="l-mine"></i>Yours</span></div>
-  <p class="bk-note" style="margin-top:16px"><span>ℹ️</span><span>Tap a slot, then tap the next one to extend (up to {{ turf.max_slots_per_booking }}). Pay at the turf · free cancellation until {{ turf.cancel_before_hours }} hours before.</span></p>
-  <div class="bk-pad-bottom"></div>
+  <div class="st-legend"><span><i></i>Available</span><span><i class="l-sel"></i>Selected</span><span><i class="l-booked"></i>Booked</span><span><i class="l-mine"></i>Yours</span></div>
+  <p class="st-note">Tap a slot, then the next one to extend (up to {{ turf.max_slots_per_booking }}). Pay at the turf. Free cancellation until {{ turf.cancel_before_hours }} hours before.</p>
+  <div class="st-pad-bottom"></div>
 
-  <div class="bk-bar" id="bk-bar" role="region" aria-label="Your selection">
-    <div><small id="bk-bar-sub"></small><b id="bk-bar-range"></b></div>
-    <div style="display:flex;align-items:center;gap:12px"><b id="bk-bar-price" class="bk-num"></b><button type="button" class="bk-btn" id="bk-bar-btn">Book</button></div>
+  <div class="st-bar" id="st-bar" role="region" aria-label="Your selection">
+    <div><small id="st-bar-sub"></small><b id="st-bar-range"></b></div>
+    <div style="display:flex;align-items:center;gap:12px"><b id="st-bar-price" class="st-num"></b><button type="button" class="st-btn" id="st-bar-btn">Book</button></div>
   </div>
 </div>
 {% include 'core/booking/_sheet.html' %}
-{{ cfg|json_script:"bk-cfg" }}
+{{ cfg|json_script:"st-cfg" }}
 {% endblock %}
 {% block extra_js %}<script src="{% static 'core/js/booking.js' %}" defer></script>{% endblock %}

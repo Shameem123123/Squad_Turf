@@ -1,331 +1,106 @@
 {% extends 'core/base.html' %}
 {% load core_extras %}
 {% block title %}{{ match.turf.name }} — SquadTurf{% endblock %}
-
 {% block content %}
-<div class="max-w-xl mx-auto">
-    <a href="javascript:history.back()" class="inline-flex items-center gap-1 text-sm font-medium text-ink-500 hover:text-ink-900 mb-4">← Back</a>
+<div class="st st-narrow" style="max-width:560px">
+  <a class="st-back" href="{% url 'feed' %}">‹ Open games</a>
 
-    <div class="bg-white border border-ink-900/10 rounded-2xl overflow-hidden shadow-sm">
-        <div class="p-6 {% if match.is_urgent %}border-t-4 border-floodlight-400{% else %}border-t-4 border-pitch-600{% endif %}">
-            <div class="flex items-start justify-between gap-3 mb-4">
-                <div>
-                    <h1 class="font-display font-bold text-2xl text-ink-900">{{ match.turf.name }}</h1>
-                    <p class="text-sm text-ink-500 mt-0.5">📍 {{ match.turf.location_name }}</p>
-                </div>
-                <span class="shrink-0 text-xs font-bold px-2.5 py-1 rounded-md
-                    {% if is_past %} bg-ink-900/10 text-ink-500
-                    {% elif match.status == 'OPEN' %} bg-pitch-600/10 text-pitch-700
-                    {% elif match.status == 'FILLED' %} bg-ink-900/10 text-ink-700
-                    {% else %} bg-rose-500/10 text-rose-600 {% endif %}">
-                    {% if is_past %}OVER{% elif match.status == 'FILLED' %}FULL{% else %}{{ match.get_status_display }}{% endif %}
-                </span>
-            </div>
-
-            <div class="grid grid-cols-2 gap-3 bg-chalk-100 rounded-xl p-4 mb-4">
-                <div>
-                    <span class="text-[10px] font-bold uppercase tracking-wide text-ink-500">Time</span>
-                    <p class="scoreclock text-sm font-bold text-ink-900 mt-0.5">{{ match.match_time|relative_day }}</p>
-                </div>
-                <div>
-                    <span class="text-[10px] font-bold uppercase tracking-wide text-ink-500">Players needed</span>
-                    <p class="scoreclock text-sm font-bold text-ink-900 mt-0.5">{{ match.players_needed }} spot{{ match.players_needed|pluralize }}</p>
-                </div>
-                <div>
-                    <span class="text-[10px] font-bold uppercase tracking-wide text-ink-500">Host</span>
-                    <p class="text-sm font-bold text-ink-900 mt-0.5">{{ match.host.first_name|default:match.host.username }}</p>
-                </div>
-                <div>
-                    <span class="text-[10px] font-bold uppercase tracking-wide text-ink-500">Cost</span>
-                    <p class="text-sm font-bold text-ink-900 mt-0.5">{{ match.cost_display }}</p>
-                </div>
-            </div>
-
-            {% if match.note %}
-            <div class="mb-5 rounded-xl bg-floodlight-400/10 border border-floodlight-400/30 px-4 py-3">
-                <p class="text-sm text-ink-700"><span class="font-bold">Host note:</span> "{{ match.note }}"</p>
-            </div>
-            {% endif %}
-
-            <div class="field-divider mb-5"></div>
-
-            {% if is_host %}
-                <h3 class="font-display font-bold text-sm text-ink-900 mb-3">Incoming requests ({{ join_requests.count }})</h3>
-                {% if join_requests %}
-                    <div class="space-y-2.5">
-                        {% for req in join_requests %}
-                            <div class="flex items-center justify-between gap-3 rounded-xl border border-ink-900/10 bg-chalk-100 px-4 py-3">
-                                <div>
-                                    <p class="font-semibold text-sm text-ink-900">{{ req.player.first_name|default:req.player.username }}</p>
-                                    <p class="text-xs mt-0.5 flex items-center gap-1.5 flex-wrap">
-                                        {% include 'core/_rating_summary.html' with profile=req.player.profile %}
-                                    </p>
-                                    {% if req.status == 'ACCEPTED' and req.player.profile.phone %}
-                                        <p class="scoreclock text-xs text-pitch-600 mt-0.5">📞 {{ req.player.profile.phone }}</p>
-                                    {% endif %}
-                                </div>
-                                <div>
-                                    {% if req.status == 'PENDING' %}
-                                        <a href="{% url 'respond_request' req.id 'accept' %}" class="text-xs font-bold bg-pitch-600 hover:bg-pitch-700 text-white px-3 py-1.5 rounded-lg transition-colors mr-1.5">Accept</a>
-                                        <a href="{% url 'respond_request' req.id 'reject' %}" class="text-xs font-semibold text-ink-500 hover:text-rose-600 px-2 py-1.5">Decline</a>
-                                    {% elif req.status == 'ACCEPTED' %}
-                                        <span class="text-xs font-bold text-pitch-600">Accepted</span>
-                                    {% elif req.status == 'REJECTED' %}
-                                        <span class="text-xs font-medium text-rose-600">Declined</span>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <p class="text-sm text-ink-500 italic">No requests yet — sit tight.</p>
-                {% endif %}
-
-                {% if not is_past and match.status != 'CANCELLED' %}
-                    <div class="mt-5 pt-4 border-t border-ink-900/10">
-                        <a href="{% url 'cancel_match' match.id %}"
-                           onclick="return confirm('Cancel this match? Everyone who joined will be notified.');"
-                           class="inline-flex text-sm font-semibold text-rose-600 hover:text-rose-700">Cancel this match</a>
-                    </div>
-                {% endif %}
-
-            {% else %}
-                {% if user_request %}
-                    <div class="text-center py-2">
-                        {% if user_request.status == 'PENDING' %}
-                            <p class="font-semibold text-sky-600 mb-3">⏳ Your request is pending host approval.</p>
-                            <a href="{% url 'cancel_join_request' match.id %}" id="step-down-btn" class="inline-flex text-sm font-semibold text-ink-500 hover:text-rose-600 border border-ink-900/15 hover:border-rose-500/40 px-4 py-2 rounded-lg transition-colors">
-                                Withdraw request <span id="step-down-countdown" class="ml-1 scoreclock"></span>
-                            </a>
-                        {% elif user_request.status == 'ACCEPTED' %}
-                            <p class="font-semibold text-pitch-600 mb-2">🎉 You're in! The host accepted your request.</p>
-                            {% if match.host.profile.phone %}
-                                <p class="text-sm text-ink-500 mb-3">Host contact: <span class="scoreclock font-bold text-pitch-600">📞 {{ match.host.profile.phone }}</span></p>
-                            {% endif %}
-                            <p class="text-xs text-ink-500 italic">Once a host accepts you, you're locked in — stepping down isn't possible from here. Contact the host directly if something's come up.</p>
-                        {% elif user_request.status == 'REJECTED' %}
-                            <p class="font-semibold text-rose-600">❌ The host declined this request.</p>
-                        {% elif user_request.status == 'CANCELLED' %}
-                            {% if already_started %}
-                                <button disabled class="block w-full bg-ink-900/10 text-ink-500 font-bold text-sm py-3 rounded-xl text-center cursor-not-allowed">Match already started</button>
-                            {% else %}
-                                <a href="{% url 'join_match' match.id %}" class="block w-full bg-pitch-900 hover:bg-pitch-700 text-chalk-50 font-bold text-sm py-3 rounded-xl text-center transition-colors">Re-apply to join</a>
-                            {% endif %}
-                        {% endif %}
-                    </div>
-                {% else %}
-                    {% if already_started %}
-                        <button disabled class="block w-full bg-ink-900/10 text-ink-500 font-bold text-sm py-3 rounded-xl text-center cursor-not-allowed">Match already started</button>
-                    {% elif match.status == 'OPEN' %}
-                        <a href="{% url 'join_match' match.id %}" class="block w-full bg-floodlight-400 hover:bg-floodlight-500 text-pitch-950 font-bold text-sm py-3 rounded-xl text-center transition-colors">Request to join</a>
-                    {% else %}
-                        <button disabled class="block w-full bg-ink-900/10 text-ink-500 font-bold text-sm py-3 rounded-xl text-center cursor-not-allowed">Match {{ match.get_status_display|lower }}</button>
-                    {% endif %}
-                {% endif %}
-            {% endif %}
-
-            {% if is_past and is_host and rateable_players %}
-                {# ---- Host: one independent rating slot per accepted player — not one rating for the whole match ---- #}
-                <div class="mt-6 pt-5 border-t border-ink-900/10">
-                    <h4 class="font-display font-bold text-sm text-ink-900 mb-3">⭐ Rate the players who joined</h4>
-                    <div class="space-y-4">
-                        {% for entry in rateable_players %}
-                            <div class="rounded-xl border border-ink-900/10 bg-chalk-100 p-4">
-                                <p class="font-semibold text-sm text-ink-900 mb-2">{{ entry.player.first_name|default:entry.player.username }}</p>
-                                {% if entry.existing_rating %}
-                                    {% if entry.existing_rating.showed_up %}
-                                        <p class="text-sm text-pitch-600 font-medium">
-                                            You said they showed up and rated their play {{ entry.existing_rating.stars }}★.
-                                        </p>
-                                    {% else %}
-                                        <p class="text-sm text-rose-600 font-medium">
-                                            You said they didn't show up — no play rating given.
-                                        </p>
-                                    {% endif %}
-                                {% else %}
-                                    <form method="POST" action="{% url 'submit_rating' match.id %}" class="space-y-3 rating-form">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="rated_user_id" value="{{ entry.player.id }}">
-                                        <div class="flex gap-2">
-                                            <label class="match-type-option flex-1">
-                                                <input type="radio" name="showed_up" value="on" checked class="peer sr-only showed-up-radio">
-                                                <div class="peer-checked:border-pitch-600 peer-checked:bg-pitch-600/10 border-2 border-ink-900/10 rounded-lg px-2.5 py-1.5 cursor-pointer transition-colors text-center font-bold text-xs text-ink-900">
-                                                    ✅ Showed up
-                                                </div>
-                                            </label>
-                                            <label class="match-type-option flex-1">
-                                                <input type="radio" name="showed_up" value="" class="peer sr-only showed-up-radio">
-                                                <div class="peer-checked:border-rose-500 peer-checked:bg-rose-500/10 border-2 border-ink-900/10 rounded-lg px-2.5 py-1.5 cursor-pointer transition-colors text-center font-bold text-xs text-ink-900">
-                                                    ❌ Did not attend
-                                                </div>
-                                            </label>
-                                        </div>
-                                        <div class="star-picker-wrap">
-                                            <input type="hidden" name="stars" class="stars-value" value="5">
-                                            <div class="flex items-center gap-1 star-picker">
-                                                {% for i in "12345" %}
-                                                    <button type="button" class="star-btn text-2xl leading-none text-floodlight-500" data-value="{{ forloop.counter }}">★</button>
-                                                {% endfor %}
-                                                <span class="star-label ml-2 text-xs font-semibold text-ink-700">5 stars</span>
-                                            </div>
-                                        </div>
-                                        <button type="submit" class="text-xs font-semibold text-pitch-700 border border-pitch-600/30 hover:bg-pitch-600/5 px-3 py-1.5 rounded-lg transition-colors">Submit feedback</button>
-                                    </form>
-                                {% endif %}
-                            </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            {% elif is_past and is_accepted_player %}
-                {# ---- A player the host actually accepted: rate the host. Not shown to pending/rejected applicants or random visitors. ---- #}
-                <div class="mt-6 pt-5 border-t border-ink-900/10">
-                    <h4 class="font-display font-bold text-sm text-ink-900 mb-3">⭐ Rate the host</h4>
-                    {% if existing_rating %}
-                        {% if existing_rating.showed_up %}
-                            <p class="text-sm text-pitch-600 font-medium">
-                                You said {{ existing_rating.rated_user.first_name|default:existing_rating.rated_user.username }}
-                                showed up and rated their play {{ existing_rating.stars }}★.
-                            </p>
-                        {% else %}
-                            <p class="text-sm text-rose-600 font-medium">
-                                You said {{ existing_rating.rated_user.first_name|default:existing_rating.rated_user.username }}
-                                didn't show up — no play rating given.
-                            </p>
-                        {% endif %}
-                    {% else %}
-                        <form method="POST" action="{% url 'submit_rating' match.id %}" class="space-y-4 rating-form">
-                            {% csrf_token %}
-                            <div>
-                                <p class="text-xs font-bold uppercase tracking-wide text-ink-500 mb-2">Did they show up?</p>
-                                <div class="flex gap-2">
-                                    <label class="match-type-option flex-1">
-                                        <input type="radio" name="showed_up" value="on" checked class="peer sr-only showed-up-radio">
-                                        <div class="peer-checked:border-pitch-600 peer-checked:bg-pitch-600/10 border-2 border-ink-900/10 rounded-xl px-3 py-2 cursor-pointer transition-colors text-center font-bold text-sm text-ink-900">
-                                            ✅ Showed up
-                                        </div>
-                                    </label>
-                                    <label class="match-type-option flex-1">
-                                        <input type="radio" name="showed_up" value="" class="peer sr-only showed-up-radio">
-                                        <div class="peer-checked:border-rose-500 peer-checked:bg-rose-500/10 border-2 border-ink-900/10 rounded-xl px-3 py-2 cursor-pointer transition-colors text-center font-bold text-sm text-ink-900">
-                                            ❌ Did not attend
-                                        </div>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div class="star-picker-wrap">
-                                <p class="text-xs font-bold uppercase tracking-wide text-ink-500 mb-2">Rate their play</p>
-                                <input type="hidden" name="stars" class="stars-value" value="5">
-                                <div class="flex items-center gap-1 star-picker">
-                                    {% for i in "12345" %}
-                                        <button type="button" class="star-btn text-3xl leading-none text-floodlight-500" data-value="{{ forloop.counter }}">★</button>
-                                    {% endfor %}
-                                    <span class="star-label ml-2 text-sm font-semibold text-ink-700">5 stars</span>
-                                </div>
-                            </div>
-
-                            <button type="submit" class="text-sm font-semibold text-pitch-700 border border-pitch-600/30 hover:bg-pitch-600/5 px-4 py-2 rounded-lg transition-colors">Submit feedback</button>
-                        </form>
-                    {% endif %}
-                </div>
-            {% endif %}
-        </div>
+  <div class="st-plain">
+    <div class="st-match-top">
+      <div style="min-width:0">
+        <h1 style="font-size:26px;letter-spacing:-.03em;font-weight:700">{{ match.turf.name }}</h1>
+        <p class="st-muted">{{ match.turf.location_name }}</p>
+      </div>
+      {% if is_past %}<span class="st-tag">Over</span>
+      {% elif match.status == 'OPEN' %}<span class="st-tag st-tag-dark">Open</span>
+      {% elif match.status == 'FILLED' %}<span class="st-tag">Full</span>
+      {% else %}<span class="st-tag st-tag-bad">Cancelled</span>{% endif %}
     </div>
+
+    <div class="st-kv">
+      <div><small>Time</small><b>{{ match.match_time|relative_day }}</b></div>
+      <div><small>Spots left</small><b>{{ match.players_needed }}</b></div>
+      <div><small>Host</small><b>{{ match.host.first_name|default:match.host.username }}</b></div>
+      <div><small>Cost</small><b>{{ match.cost_display }}</b></div>
+    </div>
+    {% if match.note %}<p class="st-quote">“{{ match.note }}”</p>{% endif %}
+
+    <div style="margin-top:20px">
+    {% if is_host %}
+      <h2 class="st-h2" style="font-size:17px">Requests ({{ join_requests|length }})</h2>
+      {% for req in join_requests %}
+      <div class="st-line">
+        <div style="min-width:0">
+          <p>{{ req.player.first_name|default:req.player.username }}</p>
+          <div class="st-wrap-flex" style="margin-top:4px">{% include 'core/_rating_summary.html' with profile=req.player.profile %}</div>
+          {% if req.status == 'ACCEPTED' and req.player.profile.phone %}<small style="margin-top:4px">{{ req.player.profile.phone }}</small>{% endif %}
+        </div>
+        {% if req.status == 'PENDING' %}
+        <div class="st-wrap-flex" style="flex-wrap:nowrap">
+          <form method="post" action="{% url 'respond_request' req.id 'accept' %}">{% csrf_token %}<button class="st-btn st-btn-sm" type="submit">Accept</button></form>
+          <form method="post" action="{% url 'respond_request' req.id 'reject' %}">{% csrf_token %}<button class="st-btn st-btn-soft st-btn-sm" type="submit">Decline</button></form>
+        </div>
+        {% elif req.status == 'ACCEPTED' %}<span class="st-tag st-tag-ok">Accepted</span>
+        {% elif req.status == 'REJECTED' %}<span class="st-tag st-tag-bad">Declined</span>{% endif %}
+      </div>
+      {% empty %}<p class="st-muted">No requests yet.</p>{% endfor %}
+
+      {% if not is_past and match.status != 'CANCELLED' %}
+      <form method="post" action="{% url 'cancel_match' match.id %}" style="margin-top:18px" data-confirm-title="Cancel this match?" data-confirm-body="Everyone who joined will be notified." data-confirm-label="Cancel match" data-danger>
+        {% csrf_token %}<button class="st-link st-link-danger" type="submit">Cancel this match</button>
+      </form>
+      {% endif %}
+
+    {% elif user_request %}
+      {% if user_request.status == 'PENDING' %}
+        <p class="st-tag st-tag-warn">Waiting for the host</p>
+        <form id="withdraw" method="post" action="{% url 'cancel_join_request' match.id %}" style="margin-top:12px">
+          {% csrf_token %}<button class="st-btn st-btn-soft st-btn-sm" type="submit">Withdraw <span class="count st-num"></span></button>
+        </form>
+      {% elif user_request.status == 'ACCEPTED' %}
+        <p class="st-tag st-tag-ok">You're in</p>
+        {% if match.host.profile.phone %}<p style="margin-top:10px">Host: <a class="st-link" href="tel:{{ match.host.profile.phone }}">{{ match.host.profile.phone }}</a></p>{% endif %}
+        <p class="st-sub" style="font-size:13px">Need to drop out? Contact the host.</p>
+      {% elif user_request.status == 'REJECTED' %}
+        <p class="st-tag st-tag-bad">Declined by the host</p>
+      {% elif user_request.status == 'CANCELLED' %}
+        {% if already_started %}<button class="st-btn st-btn-block" disabled>Match started</button>
+        {% else %}<form method="post" action="{% url 'join_match' match.id %}">{% csrf_token %}<button class="st-btn st-btn-block" type="submit">Request again</button></form>{% endif %}
+      {% endif %}
+    {% else %}
+      {% if already_started %}<button class="st-btn st-btn-block" disabled>Match started</button>
+      {% elif match.status == 'OPEN' %}
+        {% if user.is_authenticated %}<form method="post" action="{% url 'join_match' match.id %}">{% csrf_token %}<button class="st-btn st-btn-block st-btn-lg" type="submit">Request to join</button></form>
+        {% else %}<a class="st-btn st-btn-block st-btn-lg" href="{% url 'login' %}?next={{ request.path }}">Log in to join</a>{% endif %}
+      {% else %}<button class="st-btn st-btn-block" disabled>Match {{ match.get_status_display|lower }}</button>{% endif %}
+    {% endif %}
+    </div>
+
+    {% if is_past and is_host and rateable_players %}
+    <div class="st-rate">
+      <h3>Rate the players</h3>
+      {% for entry in rateable_players %}
+      <div class="st-rate-card">
+        <p style="font-weight:600;margin-bottom:8px">{{ entry.player.first_name|default:entry.player.username }}</p>
+        {% if entry.existing_rating %}
+          <p class="st-muted">{% if entry.existing_rating.showed_up %}Showed up · {{ entry.existing_rating.stars }}★{% else %}Didn't attend{% endif %}</p>
+        {% else %}{% include 'core/_rating_form.html' with rated_user_id=entry.player.id %}{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% elif is_past and is_accepted_player %}
+    <div class="st-rate">
+      <h3>Rate the host</h3>
+      {% if existing_rating %}
+        <p class="st-muted">{% if existing_rating.showed_up %}Showed up · {{ existing_rating.stars }}★{% else %}Didn't attend{% endif %}</p>
+      {% else %}<div class="st-rate-card">{% include 'core/_rating_form.html' %}</div>{% endif %}
+    </div>
+    {% endif %}
+  </div>
 </div>
+{% include 'core/booking/_sheet.html' %}
 {% endblock %}
-
-{% block extra_js %}
-<script>
-  // Withdraw-request button self-destructs after 20s — the window to back
-  // out of a pending request is short and deliberate. There's no equivalent
-  // once a host has accepted; at that point stepping down isn't offered.
-  (function () {
-    var btn = document.getElementById('step-down-btn');
-    var countdownEl = document.getElementById('step-down-countdown');
-    if (!btn || !countdownEl) return;
-
-    var remaining = 20;
-    countdownEl.textContent = '(' + remaining + 's)';
-    var timer = setInterval(function () {
-      remaining -= 1;
-      if (remaining <= 0) {
-        clearInterval(timer);
-        btn.classList.add('hidden');
-        return;
-      }
-      countdownEl.textContent = '(' + remaining + 's)';
-    }, 1000);
-  })();
-</script>
-<script>
-  (function () {
-    // A match can now show several independent rating forms at once (the
-    // host rating each accepted player), so each star-picker is wired up,
-    // and locked/unlocked, on its own — nothing in one form touches another.
-    document.querySelectorAll('.rating-form').forEach(function (form) {
-      var picker = form.querySelector('.star-picker');
-      var pickerWrap = form.querySelector('.star-picker-wrap');
-      if (!picker) return;
-
-      var buttons = picker.querySelectorAll('.star-btn');
-      var hiddenInput = picker.querySelector('.stars-value') || (pickerWrap && pickerWrap.querySelector('.stars-value'));
-      var label = picker.querySelector('.star-label');
-      var showedUpRadios = form.querySelectorAll('.showed-up-radio');
-
-      // The star a picker last held while marked "showed up" — restored if
-      // the host flips back from "did not attend" without losing their pick.
-      var lastPlayStars = 5;
-      var locked = false;
-
-      function paintStars(value) {
-        buttons.forEach(function (btn) {
-          var filled = parseInt(btn.dataset.value, 10) <= value;
-          btn.classList.toggle('text-floodlight-500', filled && !locked);
-          btn.classList.toggle('text-ink-900/15', !filled || locked);
-        });
-      }
-
-      function setStars(value) {
-        if (hiddenInput) hiddenInput.value = value;
-        if (label) label.textContent = value + (value == 1 ? ' star' : ' stars');
-        paintStars(value);
-      }
-
-      function lockToZero() {
-        locked = true;
-        if (pickerWrap) pickerWrap.classList.add('opacity-40', 'pointer-events-none');
-        if (hiddenInput) hiddenInput.value = 0;
-        if (label) label.textContent = 'Not rated — no-show';
-        paintStars(0);
-      }
-
-      function unlock() {
-        locked = false;
-        if (pickerWrap) pickerWrap.classList.remove('opacity-40', 'pointer-events-none');
-        setStars(lastPlayStars);
-      }
-
-      buttons.forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          if (locked) return;
-          lastPlayStars = parseInt(btn.dataset.value, 10);
-          setStars(lastPlayStars);
-        });
-      });
-
-      showedUpRadios.forEach(function (radio) {
-        radio.addEventListener('change', function () {
-          if (radio.checked && radio.value === 'on') {
-            unlock();
-          } else if (radio.checked) {
-            lockToZero();
-          }
-        });
-      });
-
-      setStars(5);
-    });
-  })();
-</script>
+{% block extra_js %}{% load static %}
+<script src="{% static 'core/js/booking.js' %}" defer></script>
+<script src="{% static 'core/js/match.js' %}" defer></script>
 {% endblock %}
-

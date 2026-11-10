@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timedelta
+from functools import wraps
 from pathlib import Path
 
 from django.conf import settings
@@ -7,17 +8,22 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Max, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from .forms import LoginForm, MatchForm, OtpForm, ProfileEditForm, SignupForm
-from .models import JoinRequest, Match, Notification, Profile, PushSubscription, Rating, Turf
-from .notifications import notify
+from . import booking_logic as bl
 from . import otp as otp_service
+from .forms import LoginForm, MatchForm, OtpForm, ProfileEditForm, SignupForm
+from .models import (
+    Booking, JoinRequest, Match, Notification, Profile, PushSubscription, Rating, Turf,
+)
+from .notifications import active_for, notify, notify_many, purge_expired
 
 FEED_LOOKBACK = timedelta(hours=1)      # how long an OPEN match stays live on the feed after kickoff
 NOTIF_LOOKBACK = timedelta(hours=2)     # how long home-page notifications stay visible after kickoff
@@ -25,6 +31,26 @@ PAST_CUTOFF = timedelta(hours=1)        # when a match is considered "over" in d
 RECENT_PLAYED_WINDOW = timedelta(hours=4)
 IMMINENT_WINDOW = timedelta(hours=2)    # a match this close to kickoff is treated as urgent, whatever it was hosted as
 URGENT_MAX_WINDOW = timedelta(hours=2, minutes=30)  # urgent matches can only be booked up to this far out
+
+
+def player_only(view):
+    """Match / find-players pages are for players. Turf managers get their console."""
+    @wraps(view)
+    def wrapper(request, *args, **kwargs):
+        if request.user.is_authenticated and bl.is_turf_admin(request.user):
+            return redirect('manage_home')
+        return view(request, *args, **kwargs)
+    return wrapper
+
+
+def _back(request, default='feed'):
+    """Return to the page the action came from (same-site only)."""
+    target = request.META.get('HTTP_REFERER', '')
+    if target and url_has_allowed_host_and_scheme(
+        target, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return redirect(target)
+    return redirect(default)
 
 
 # ---------------------------------------------------------------------------
@@ -35,7 +61,7 @@ URGENT_MAX_WINDOW = timedelta(hours=2, minutes=30)  # urgent matches can only be
 
 def signup(request):
     if request.user.is_authenticated:
-        return redirect('feed')
+        return redirect('home')
 
     form = SignupForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
@@ -44,20 +70,20 @@ def signup(request):
         password = form.cleaned_data['password']
 
         if Profile.objects.filter(phone=phone).exists():
-            messages.error(request, "That mobile number is already registered. Please log in instead.")
+            messages.error(request, "That number is already registered. Log in instead.")
             return redirect('login')
 
         if not otp_service.otp_required():
             _create_and_login(request, name, phone, password)
-            messages.success(request, f"Welcome to SquadTurf, {name}! 🎉")
-            return redirect('feed')
+            messages.success(request, f"Welcome, {name}.")
+            return redirect('home')
 
         otp, debug_code = otp_service.issue_otp(phone, 'SIGNUP')
         request.session['pending_auth'] = {'flow': 'signup', 'name': name, 'phone': phone, 'password': password}
         if debug_code:
-            messages.info(request, f"Dev mode — no SMS provider configured. Your code is {debug_code}.")
+            messages.info(request, f"Dev mode: your code is {debug_code}.")
         else:
-            messages.success(request, f"We've sent a 6-digit code to {phone}.")
+            messages.success(request, f"We sent a 6-digit code to {phone}.")
         return redirect('verify_otp')
 
     return render(request, 'core/signup.html', {'form': form})
@@ -65,7 +91,7 @@ def signup(request):
 
 def login_view(request):
     if request.user.is_authenticated:
-        return redirect('feed')
+        return redirect('home')
 
     form = LoginForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
@@ -74,7 +100,7 @@ def login_view(request):
         try:
             profile = Profile.objects.select_related('user').get(phone=phone)
         except Profile.DoesNotExist:
-            messages.error(request, "No account found with that number. Please sign up first.")
+            messages.error(request, "No account with that number. Sign up first.")
             return redirect('signup')
 
         user = authenticate(request, username=profile.user.username, password=password)
@@ -83,7 +109,7 @@ def login_view(request):
             return render(request, 'core/login.html', {'form': form})
 
         login(request, user)
-        messages.success(request, f"Welcome back, {profile.display_name}! 👋")
+        messages.success(request, f"Welcome back, {profile.display_name}.")
         return redirect(_post_login_url(request, user))
 
     return render(request, 'core/login.html', {'form': form})
@@ -102,13 +128,13 @@ def _post_login_url(request, user):
         return target
     if TurfManager.objects.filter(user=user).exists():
         return reverse('manage_home')
-    return reverse('feed')
+    return reverse('home')
 
 
 def verify_otp(request):
     pending = request.session.get('pending_auth')
     if not pending:
-        messages.error(request, "That verification link expired. Please start again.")
+        messages.error(request, "That verification expired. Please start again.")
         return redirect('login')
 
     phone = pending['phone']
@@ -119,8 +145,8 @@ def verify_otp(request):
         if ok:
             del request.session['pending_auth']
             _create_and_login(request, pending['name'], phone, pending['password'])
-            messages.success(request, f"Welcome to SquadTurf, {pending['name']}! 🎉")
-            return redirect('feed')
+            messages.success(request, f"Welcome, {pending['name']}.")
+            return redirect('home')
         messages.error(request, error)
 
     masked = phone[:2] + '••••••' + phone[-2:]
@@ -130,19 +156,19 @@ def verify_otp(request):
 def resend_otp(request):
     pending = request.session.get('pending_auth')
     if not pending:
-        messages.error(request, "That verification link expired. Please start again.")
+        messages.error(request, "That verification expired. Please start again.")
         return redirect('login')
 
     phone = pending['phone']
     purpose = 'SIGNUP'
 
     if not otp_service.can_resend(phone, purpose):
-        messages.error(request, f"Please wait a few seconds before requesting another code.")
+        messages.error(request, "Please wait a few seconds before asking for another code.")
         return redirect('verify_otp')
 
     otp, debug_code = otp_service.issue_otp(phone, purpose)
     if debug_code:
-        messages.info(request, f"Dev mode — your new code is {debug_code}.")
+        messages.info(request, f"Dev mode: your new code is {debug_code}.")
     else:
         messages.success(request, "A new code is on its way.")
     return redirect('verify_otp')
@@ -162,9 +188,10 @@ def _create_and_login(request, name, phone, password):
 
 
 @login_required
+@require_POST
 def logout_view(request):
     logout(request)
-    messages.info(request, "You've been logged out. See you on the pitch!")
+    messages.info(request, "You're logged out.")
     return redirect('login')
 
 
@@ -172,7 +199,37 @@ def logout_view(request):
 # Feed & discovery
 # ---------------------------------------------------------------------------
 
+def home(request):
+    """Landing page: book a turf first, find players second."""
+    if request.user.is_authenticated and bl.is_turf_admin(request.user):
+        return redirect('manage_home')
+
+    now = timezone.now()
+    turfs = list(Turf.objects.filter(is_active=True, booking_enabled=True)[:6])
+    free = bl.free_slots_today_many(turfs, now)
+    cards = [
+        {'turf': t, 'free_today': free.get(t.pk, 0), 'open_now': bl.is_open_now(t)}
+        for t in turfs
+    ]
+    next_booking = None
+    if request.user.is_authenticated:
+        next_booking = (
+            Booking.objects.filter(
+                user=request.user, source=Booking.Source.ONLINE,
+                status=Booking.Status.CONFIRMED, end_at__gt=now,
+            ).select_related('turf').order_by('start_at').first()
+        )
+    open_games = Match.objects.filter(
+        status=Match.Status.OPEN, match_time__gte=now - FEED_LOOKBACK
+    ).count()
+    return render(request, 'core/home.html', {
+        'cards': cards, 'next_booking': next_booking, 'open_games': open_games,
+    })
+
+
+@player_only
 def feed(request):
+    """Find players: open games to join."""
     now = timezone.now()
     local_today = timezone.localtime(now).date()
     local_tomorrow = local_today + timedelta(days=1)
@@ -275,9 +332,11 @@ def turf_directory(request):
     if search:
         turfs = turfs.filter(Q(name__icontains=search) | Q(location_name__icontains=search))
 
-    open_counts = {}
-    for m in Match.objects.filter(status=Match.Status.OPEN, match_time__gte=timezone.now() - FEED_LOOKBACK):
-        open_counts[m.turf_id] = open_counts.get(m.turf_id, 0) + 1
+    open_counts = dict(
+        Match.objects.filter(
+            status=Match.Status.OPEN, match_time__gte=timezone.now() - FEED_LOOKBACK
+        ).order_by().values_list('turf_id').annotate(n=Count('id'))
+    )
 
     turfs = list(turfs)
     for t in turfs:
@@ -318,6 +377,7 @@ def turf_detail(request, slug):
 # ---------------------------------------------------------------------------
 
 @login_required
+@player_only
 def create_match(request):
     preselected_turf_id = request.GET.get('turf')
 
@@ -349,18 +409,14 @@ def create_match(request):
             # the host picked "Right now" or "Plan ahead" -> "Today".
             if chosen_date == local_today and match.match_time <= now:
                 form.add_error(
-                    None,
-                    "That time is already here or has passed — pick an upcoming slot, "
-                    "or choose Tomorrow."
+                    None, "That time has passed. Pick a later slot, or choose Tomorrow."
                 )
                 return render(request, 'core/create_match.html', {'form': form})
 
             if match.match_type == Match.MatchType.URGENT:
                 if match.match_time > urgent_cutoff:
                     form.add_error(
-                        None,
-                        "Urgent matches can only be booked up to 2.5 hours from now. "
-                        "Choose 'Plan ahead' to schedule further out."
+                        None, "Urgent games start within 2.5 hours. Use 'Plan ahead' for later."
                     )
                     return render(request, 'core/create_match.html', {'form': form})
             else:
@@ -374,7 +430,7 @@ def create_match(request):
                 match.per_head_amount = 0
 
             match.save()
-            messages.success(request, "Match request posted! Players nearby will see it now.")
+            messages.success(request, "Posted. Players can see it now.")
             _broadcast_new_match(match)
             return redirect('feed')
     else:
@@ -390,18 +446,21 @@ def create_match(request):
 
 
 def _broadcast_new_match(match):
-    """The pillar feature: tell everyone (who's opted in) the moment a
-    match goes up, so there's always a fast route to a full squad."""
-    recipients = Profile.objects.filter(is_available_for_alerts=True) \
-        .exclude(user_id=match.host_id).select_related('user')
-
-    message = (
-        f"New {match.get_match_type_display().split(' /')[0].lower()} match at {match.turf.name}: "
-        f"{match.players_needed} player{'s' if match.players_needed != 1 else ''} needed, "
-        f"{match.match_time.strftime('%I:%M %p').lstrip('0')} kickoff."
+    """Tell everyone who opted in, the moment a match goes up. Turf managers don't
+    play, so they're left out."""
+    recipients = (
+        User.objects.filter(profile__is_available_for_alerts=True)
+        .exclude(pk=match.host_id)
+        .exclude(turf_manager_links__isnull=False)
+        .only('pk')
     )
-    for profile in recipients:
-        notify(profile.user, Notification.Verb.NEW_MATCH, message, match=match)
+    kind = match.get_match_type_display().split(' /')[0].lower()
+    count = match.players_needed
+    message = (
+        f"New {kind} game at {match.turf.name}: {count} player{'s' if count != 1 else ''} "
+        f"needed, {bl.fmt_time(match.match_time)}."
+    )
+    notify_many(recipients, Notification.Verb.NEW_MATCH, message, match=match)
 
 
 def match_detail(request, match_id):
@@ -463,6 +522,7 @@ def match_detail(request, match_id):
 
 
 @login_required
+@require_POST
 @transaction.atomic
 def join_match(request, match_id):
     match = get_object_or_404(Match.objects.select_for_update(), id=match_id)
@@ -472,11 +532,11 @@ def join_match(request, match_id):
         return redirect('match_detail', match_id=match.id)
 
     if match.match_time < timezone.now():
-        messages.error(request, "This match has already started, so it's no longer accepting new players.")
+        messages.error(request, "This match has started. It's closed to new players.")
         return redirect('match_detail', match_id=match.id)
 
     if match.status != Match.Status.OPEN:
-        messages.error(request, "This match is no longer open for new players.")
+        messages.error(request, "This match is no longer open.")
         return redirect('match_detail', match_id=match.id)
 
     join_req, created = JoinRequest.objects.get_or_create(
@@ -485,7 +545,7 @@ def join_match(request, match_id):
     )
 
     if created:
-        messages.success(request, "Request sent! The host will review it shortly.")
+        messages.success(request, "Request sent. The host will review it.")
         notify(
             match.host, Notification.Verb.JOIN_REQUEST,
             f"{request.user.first_name or request.user.username} wants to join your match at {match.turf.name}.",
@@ -494,19 +554,20 @@ def join_match(request, match_id):
     elif join_req.status == JoinRequest.Status.CANCELLED:
         join_req.status = JoinRequest.Status.PENDING
         join_req.save(update_fields=['status'])
-        messages.success(request, "Your request to join has been re-submitted.")
+        messages.success(request, "Request sent again.")
         notify(
             match.host, Notification.Verb.JOIN_REQUEST,
             f"{request.user.first_name or request.user.username} re-requested to join your match at {match.turf.name}.",
             match=match,
         )
     else:
-        messages.info(request, "You've already requested to join this match.")
+        messages.info(request, "You've already requested to join.")
 
     return redirect('match_detail', match_id=match.id)
 
 
 @login_required
+@require_POST
 @transaction.atomic
 def cancel_join_request(request, match_id):
     join_req = get_object_or_404(
@@ -515,11 +576,12 @@ def cancel_join_request(request, match_id):
     )
     join_req.status = JoinRequest.Status.CANCELLED
     join_req.save(update_fields=['status'])
-    messages.info(request, "Your request has been withdrawn.")
+    messages.info(request, "Request withdrawn.")
     return redirect('match_detail', match_id=match_id)
 
 
 @login_required
+@require_POST
 @transaction.atomic
 def leave_match(request, match_id):
     join_req = get_object_or_404(
@@ -536,17 +598,18 @@ def leave_match(request, match_id):
         match.status = Match.Status.OPEN
     match.save(update_fields=['players_needed', 'status'])
 
-    messages.info(request, "You've stepped down. The open spot has been restored.")
+    messages.info(request, "You've stepped down. The spot is open again.")
     notify(
         match.host, Notification.Verb.PLAYER_LEFT,
-        f"{request.user.first_name or request.user.username} stepped down from your match at {match.turf.name}. "
-        f"You may want to find a replacement.",
+        f"{request.user.first_name or request.user.username} left your match at "
+        f"{match.turf.name}. Find a replacement?",
         match=match,
     )
     return redirect('match_detail', match_id=match_id)
 
 
 @login_required
+@require_POST
 @transaction.atomic
 def cancel_match(request, match_id):
     match = get_object_or_404(Match.objects.select_for_update(), id=match_id, host=request.user)
@@ -565,30 +628,32 @@ def cancel_match(request, match_id):
     for req in accepted_players:
         notify(
             req.player, Notification.Verb.MATCH_CANCELLED,
-            f"The match at {match.turf.name} ({match.match_time:%d %b, %I:%M %p}) was cancelled by the host.",
+            f"Cancelled by the host: {match.turf.name}, "
+            f"{timezone.localtime(match.match_time):%d %b, %I:%M %p}.",
             match=match,
         )
 
-    messages.info(request, "Match cancelled. Everyone who'd joined has been notified.")
+    messages.info(request, "Match cancelled. Players were notified.")
     return redirect('my_hosted')
 
 
 @login_required
+@require_POST
 @transaction.atomic
 def respond_request(request, request_id, action):
     join_req = get_object_or_404(JoinRequest.objects.select_for_update(), id=request_id)
     match = get_object_or_404(Match.objects.select_for_update(), id=join_req.match_id)
 
     if match.host_id != request.user.id:
-        messages.error(request, "You're not authorized to manage this request.")
+        messages.error(request, "You can't manage this request.")
         return redirect('feed')
 
     player_name = join_req.player.first_name or join_req.player.username
 
     if action == 'accept':
         if match.status == Match.Status.FILLED or match.players_needed <= 0:
-            messages.error(request, "Can't accept — this match is already full.")
-            return redirect(request.META.get('HTTP_REFERER', '/'))
+            messages.error(request, "This match is already full.")
+            return _back(request)
 
         join_req.status = JoinRequest.Status.ACCEPTED
         join_req.save(update_fields=['status'])
@@ -597,10 +662,10 @@ def respond_request(request, request_id, action):
         if match.players_needed <= 0:
             match.status = Match.Status.FILLED
         match.save(update_fields=['players_needed', 'status'])
-        messages.success(request, f"Accepted {player_name} for the match.")
+        messages.success(request, f"Accepted {player_name}.")
         notify(
             join_req.player, Notification.Verb.REQUEST_ACCEPTED,
-            f"You're in! Your host accepted your request for {match.turf.name}.",
+            f"You're in. Your request for {match.turf.name} was accepted.",
             match=match,
         )
 
@@ -613,14 +678,14 @@ def respond_request(request, request_id, action):
 
         join_req.status = JoinRequest.Status.REJECTED
         join_req.save(update_fields=['status'])
-        messages.info(request, f"Declined request from {player_name}.")
+        messages.info(request, f"Declined {player_name}.")
         notify(
             join_req.player, Notification.Verb.REQUEST_DECLINED,
-            f"Your request to join the match at {match.turf.name} was declined.",
+            f"Your request for {match.turf.name} was declined.",
             match=match,
         )
 
-    return redirect(request.META.get('HTTP_REFERER', '/'))
+    return _back(request)
 
 
 @login_required
@@ -673,9 +738,9 @@ def submit_rating(request, match_id):
                 match=match, rater=request.user, rated_user=rated_user,
                 defaults={'stars': stars, 'showed_up': showed_up},
             )
-            messages.success(request, "Thanks! Your feedback has been recorded.")
+            messages.success(request, "Thanks for the feedback.")
         else:
-            messages.error(request, "There's no one to rate for this match yet.")
+            messages.error(request, "There's no one to rate for this match.")
 
     return redirect('match_detail', match_id=match_id)
 
@@ -686,6 +751,7 @@ def submit_rating(request, match_id):
 # ---------------------------------------------------------------------------
 
 @login_required
+@player_only
 def my_hosted(request):
     now_cutoff = timezone.now() - PAST_CUTOFF
     hosted = Match.objects.filter(host=request.user).select_related('turf') \
@@ -705,6 +771,7 @@ def my_hosted(request):
 
 
 @login_required
+@player_only
 def my_joined(request):
     now_cutoff = timezone.now() - PAST_CUTOFF
     reqs = JoinRequest.objects.filter(player=request.user).select_related(
@@ -725,15 +792,17 @@ def my_joined(request):
 @login_required
 def profile(request):
     prof = request.user.profile
+    is_manager = bl.is_turf_admin(request.user)
 
     if request.method == 'POST':
         form = ProfileEditForm(request.POST)
         if form.is_valid():
             request.user.first_name = form.cleaned_data['name']
             request.user.save(update_fields=['first_name'])
-            prof.is_available_for_alerts = form.cleaned_data['is_available_for_alerts']
-            prof.save(update_fields=['is_available_for_alerts'])
-            messages.success(request, "Profile updated.")
+            if not is_manager:
+                prof.is_available_for_alerts = form.cleaned_data['is_available_for_alerts']
+                prof.save(update_fields=['is_available_for_alerts'])
+            messages.success(request, "Profile saved.")
             return redirect('profile')
     else:
         form = ProfileEditForm(initial={
@@ -741,19 +810,21 @@ def profile(request):
             'is_available_for_alerts': prof.is_available_for_alerts,
         })
 
-    stats = {
-        'hosted_count': Match.objects.filter(host=request.user).count(),
-        # "Played" only counts matches actually completed — i.e. the user
-        # was rated (showed-up/star review) by the host or a teammate
-        # afterwards. An accepted-but-not-yet-played request doesn't count.
-        'joined_count': Rating.objects.filter(rated_user=request.user).values('match_id').distinct().count(),
-        'average_rating': prof.average_rating(),
-        'rating_count': prof.rating_count(),
-        'reliability_pct': prof.reliability_pct(),
+    stats = None
+    if not is_manager:  # managers don't host, join or get rated
+        stats = {
+            'hosted_count': Match.objects.filter(host=request.user).count(),
+            # "Played" counts completed matches only — the player was rated afterwards.
+            'joined_count': Rating.objects.filter(rated_user=request.user)
+            .values('match_id').distinct().count(),
+            'average_rating': prof.average_rating(),
+            'rating_count': prof.rating_count(),
+            'reliability_pct': prof.reliability_pct(),
+        }
+    return render(request, 'core/profile.html', {
+        'form': form, 'profile': prof, 'stats': stats, 'is_manager': is_manager,
         'push_enabled': PushSubscription.objects.filter(user=request.user).exists(),
-    }
-
-    return render(request, 'core/profile.html', {'form': form, 'stats': stats, 'profile': prof})
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -762,8 +833,17 @@ def profile(request):
 
 @login_required
 def notification_list(request):
-    notes = Notification.objects.filter(recipient=request.user).select_related('match', 'match__turf')
-    Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True)
+    """Last seven days of notifications. Older ones are deleted. Items are loaded
+    first and marked read afterwards, so what was new still shows as new."""
+    purge_expired(request.user)
+    notes = list(
+        active_for(request.user).select_related('match', 'booking', 'booking__turf')[:100]
+    )
+    unread = [n.pk for n in notes if not n.is_read]
+    for n in notes:
+        n.was_unread = not n.is_read
+    if unread:
+        Notification.objects.filter(pk__in=unread).update(is_read=True)
     return render(request, 'core/notifications.html', {'notifications': notes})
 
 
@@ -809,24 +889,25 @@ def push_unsubscribe(request):
 
 
 def live_status(request):
-    """Polled every few seconds by live.js so the feed, notification badge
-    and pending-request lists update without a manual page refresh — no
-    websockets/Celery required, just a cheap signature comparison."""
+    """Polled by live.js so badges and lists refresh without a reload. It returns a
+    cheap signature; the page only re-fetches when the signature changes."""
     if not request.user.is_authenticated:
         return JsonResponse({'sig': '0', 'unread': 0})
 
-    latest_match_id = Match.objects.order_by('-id').values_list('id', flat=True).first() or 0
-    latest_notif_id = Notification.objects.filter(recipient=request.user).order_by('-id') \
-        .values_list('id', flat=True).first() or 0
-    latest_join_id = JoinRequest.objects.filter(
+    latest_match = cache.get_or_set(
+        'latest-match-id', lambda: Match.objects.aggregate(m=Max('id'))['m'] or 0, 5
+    )
+    mine = active_for(request.user)
+    latest_note = mine.aggregate(m=Max('id'))['m'] or 0
+    latest_join = JoinRequest.objects.filter(
         Q(match__host=request.user) | Q(player=request.user)
-    ).order_by('-id').values_list('id', flat=True).first() or 0
-    unread = Notification.objects.filter(recipient=request.user, is_read=False).count()
-    latest_verb = Notification.objects.filter(recipient=request.user) \
-        .order_by('-id').values_list('verb', flat=True).first()
-
-    sig = f"{latest_match_id}-{latest_notif_id}-{latest_join_id}"
-    return JsonResponse({'sig': sig, 'unread': unread, 'latest_verb': latest_verb})
+    ).aggregate(m=Max('id'))['m'] or 0
+    resp = JsonResponse({
+        'sig': f"{latest_match}-{latest_note}-{latest_join}",
+        'unread': mine.filter(is_read=False).count(),
+    })
+    resp['Cache-Control'] = 'no-store'
+    return resp
 
 
 def vapid_public_key(request):

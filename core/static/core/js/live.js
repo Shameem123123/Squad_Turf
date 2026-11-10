@@ -1,77 +1,54 @@
-// SquadTurf — near-real-time updates without websockets/Celery.
-// Polls a cheap JSON "signature" endpoint every few seconds. If anything
-// relevant changed (new match, new join request, request accepted/declined,
-// new notification) it quietly refreshes the notification badge and, on
-// pages that opt in with id="live-region", swaps that region's HTML in
-// place — no full page reload, scroll position preserved.
-
+// SquadTurf — near-real-time updates without websockets.
+// Polls a cheap "signature" endpoint. When it changes, the notification badge
+// refreshes and any page with id="live-region" swaps just that region in place.
 (function () {
-  var POLL_INTERVAL_MS = 8000;
-  var body = document.body;
-  if (!body || !('liveSig' in body.dataset)) return;
+  'use strict';
+  var BASE_MS = 10000, MAX_MS = 60000;
+  if (!document.body || !('live' in document.body.dataset)) return;
 
-  var lastSig = body.dataset.liveSig || '0';
-  var inFlight = false;
-  var lastUnread = null;
+  var lastSig = null, inFlight = false, delay = BASE_MS;
 
-  function updateBadge(count) {
-    var badge = document.getElementById('notif-badge');
-    // No sound is played here — SquadTurf doesn't play any sound of its
-    // own; the only notification sound a user ever hears is their phone's
-    // own default, triggered by the system push in sw.js.
-    lastUnread = count;
-    [badge, document.getElementById('notif-badge-mobile')].forEach(function (el) {
-      if (!el) return;
-      if (count > 0) {
-        el.textContent = count > 99 ? '99+' : String(count);
-        el.classList.remove('hidden');
-      } else {
-        el.classList.add('hidden');
-      }
+  function setBadges(count) {
+    document.querySelectorAll('[data-notif-badge]').forEach(function (el) {
+      el.textContent = count > 99 ? '99+' : String(count);
+      el.hidden = count <= 0;
     });
   }
 
-  function softReload() {
+  function refreshRegion() {
     var region = document.getElementById('live-region');
     if (!region) return;
-    fetch(window.location.pathname + window.location.search, { credentials: 'same-origin' })
-      .then(function (resp) { return resp.text(); })
+    fetch(location.pathname + location.search, { credentials: 'same-origin' })
+      .then(function (r) { return r.text(); })
       .then(function (html) {
-        var doc = new DOMParser().parseFromString(html, 'text/html');
-        var newRegion = doc.getElementById('live-region');
-        if (newRegion) {
-          region.innerHTML = newRegion.innerHTML;
-        }
+        var next = new DOMParser().parseFromString(html, 'text/html').getElementById('live-region');
+        if (next) region.innerHTML = next.innerHTML;
       })
-      .catch(function () { /* silent — will retry on next poll */ });
+      .catch(function () { /* retried on the next change */ });
   }
 
   function poll() {
-    if (inFlight || document.hidden) return;
+    if (inFlight || document.hidden) return schedule();
     inFlight = true;
-    fetch('/api/live/', { credentials: 'same-origin' })
-      .then(function (resp) { return resp.json(); })
+    fetch('/api/live/', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(function (data) {
-        updateBadge(data.unread || 0);
-        if (data.sig && data.sig !== lastSig) {
-          lastSig = data.sig;
-          softReload();
-        }
+        setBadges(data.unread || 0);
+        if (lastSig !== null && data.sig !== lastSig) refreshRegion();
+        lastSig = data.sig;
+        delay = BASE_MS;
       })
-      .catch(function () { /* offline / server hiccup — try again next tick */ })
-      .finally(function () { inFlight = false; });
+      .catch(function () { delay = Math.min(delay * 2, MAX_MS); })   // back off when offline
+      .finally(function () { inFlight = false; schedule(); });
   }
 
-  setInterval(poll, POLL_INTERVAL_MS);
-  document.addEventListener('visibilitychange', function () {
-    if (!document.hidden) poll();
-  });
+  function schedule() { setTimeout(poll, delay); }
 
-  // A push can land in between polls — react immediately instead of making
-  // the badge/live-region wait up to POLL_INTERVAL_MS to catch up.
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.addEventListener('message', function (event) {
-      if (event.data && event.data.type === 'squadturf-push') poll();
+    navigator.serviceWorker.addEventListener('message', function (e) {
+      if (e.data && e.data.type === 'squadturf-push') poll();
     });
   }
+  poll();
 })();

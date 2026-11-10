@@ -1,0 +1,49 @@
+{% extends 'core/base.html' %}
+{% load booking_tags %}
+{% block title %}SquadTurf{% endblock %}
+{% block content %}
+<div class="st">
+  <section class="st-hero">
+    <p class="st-eyebrow">{% if user.is_authenticated %}Hi {{ user.profile.display_name }}{% else %}Welcome{% endif %}</p>
+    <h1 class="st-title">Play more.<br><span class="st-accent">Plan less.</span></h1>
+  </section>
+
+  <div class="st-cta">
+    <a class="st-cta-main" href="{% url 'book_directory' %}">
+      <div><h2>Book a turf</h2><p>Pick a slot. Get your ticket.</p></div>
+      <span class="st-cta-go">Browse turfs <svg width="20" height="20"><use href="#i-arrow"/></svg></span>
+    </a>
+    <a class="st-cta-alt" href="{% url 'feed' %}">
+      <div><h2>Find players</h2><p>{% if open_games %}{{ open_games }} open game{{ open_games|pluralize }} now{% else %}Join a game or host one{% endif %}</p></div>
+      <span class="st-cta-go">Open games <svg width="20" height="20"><use href="#i-arrow"/></svg></span>
+    </a>
+  </div>
+
+  {% if next_booking %}
+  <a class="st-next" href="{% url 'booking_detail' next_booking.reference %}">
+    <small>{% if next_booking.in_progress %}Playing now{% else %}Next booking{% endif %}</small>
+    <b>{{ next_booking.turf.name }}</b>
+    <span class="st-muted">{{ next_booking.start_at|bk_day }} · {{ next_booking|bk_range }}</span>
+  </a>
+  {% endif %}
+
+  {% if cards %}
+  <section class="st-section" aria-label="Turfs">
+    <div class="st-head"><h2>Turfs near you</h2><a href="{% url 'book_directory' %}">See all</a></div>
+    <div class="st-strip-scroll">
+      {% for c in cards %}
+      <a class="st-card" href="{% url 'book_turf' c.turf.slug %}">
+        {% include 'core/booking/_cover.html' with turf=c.turf %}
+        <div class="st-card-body">
+          <div class="st-row">
+            <span class="st-price">{{ c.turf.price_from|inr }} <small>/ slot</small></span>
+            <span class="st-free {% if not c.free_today %}is-none{% endif %}">{% if c.free_today %}<i class="st-dot"></i>{{ c.free_today }} free today{% else %}Full today{% endif %}</span>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

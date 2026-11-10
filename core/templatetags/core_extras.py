@@ -45,3 +45,10 @@ def day_bucket(value):
 def stars_range(value):
     """[1..5] range for rendering star icons regardless of input type."""
     return range(1, 6)
+
+
+@register.simple_tag(takes_context=True)
+def active(context, *names):
+    """'is-active' when the current page's URL name is one of `names`."""
+    match = getattr(context.get('request'), 'resolver_match', None)
+    return 'is-active' if match and match.url_name in names else ''

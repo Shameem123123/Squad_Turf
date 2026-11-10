@@ -16,6 +16,7 @@ urlpatterns = [
     path('manage/', v.manage_home, name='manage_home'),
     path('manage/<slug:slug>/', v.manage_schedule, name='manage_schedule'),
     path('manage/<slug:slug>/bookings/', v.manage_bookings, name='manage_bookings'),
+    path('manage/<slug:slug>/scan/', v.manage_scan, name='manage_scan'),
     path('manage/<slug:slug>/settings/', v.manage_settings, name='manage_settings'),
     path('manage/<slug:slug>/walkin/', v.manage_walkin, name='manage_walkin'),
     path('manage/<slug:slug>/block/', v.manage_block, name='manage_block'),
@@ -25,4 +26,6 @@ urlpatterns = [
     path('manage/<slug:slug>/booking/<str:ref>/cancel/', v.manage_booking_cancel, name='manage_booking_cancel'),
     path('manage/<slug:slug>/booking/<str:ref>/paid/', v.manage_booking_paid, name='manage_booking_paid'),
     path('api/manage/<slug:slug>/slots/', v.manage_slots_api, name='manage_slots_api'),
+    path('api/manage/<slug:slug>/scan/', v.manage_scan_api, name='manage_scan_api'),
+    path('api/manage/<slug:slug>/scan/admit/', v.manage_scan_admit, name='manage_scan_admit'),
 ]

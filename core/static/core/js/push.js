@@ -90,32 +90,21 @@
     return { ok: true };
   }
 
-  // ---- Notification sound -------------------------------------------------
-  // SquadTurf no longer ships or plays any sound of its own — no bundled
-  // audio files, no synthesized tone, nothing. Every push notification is
-  // shown by the service worker via the standard Notification API (see
-  // sw.js), and that's what triggers the device's own, user-configured
-  // "default notification sound" — the same sound every other app on the
-  // phone uses. This function is kept as a no-op (rather than deleted) so
-  // sw.js/live.js don't need to special-case whether it exists; it simply
-  // never produces sound of its own.
-  function playNotificationSound() {
-    // Intentionally does nothing — the OS/browser's own notification sound
-    // (triggered by showNotification() in sw.js) is the only sound a
-    // SquadTurf push ever makes.
-  }
-
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.addEventListener('message', function (event) {
-      if (event.data && event.data.type === 'squadturf-push') {
-        playNotificationSound();
-      }
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('[data-push-enable]');
+    if (!btn) return;
+    btn.disabled = true;
+    btn.textContent = 'Enabling…';
+    subscribeToPush().then(function (result) {
+      if (result.ok) return location.reload();
+      btn.disabled = false;
+      btn.textContent = 'Enable';
+      alert(window.SquadTurfPush.messageFor(result.reason));
     });
-  }
+  });
 
   window.SquadTurfPush = {
     subscribe: subscribeToPush,
-    playNotificationSound: playNotificationSound,
     messageFor: function (reason) {
       return REASON_MESSAGES[reason] || "Couldn't enable notifications. Please try again.";
     },

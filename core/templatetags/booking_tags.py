@@ -5,7 +5,6 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .. import booking_logic as bl
-from ..models import Turf
 
 register = template.Library()
 
@@ -21,8 +20,10 @@ def inr(value):
 
 @register.filter
 def cover_hue(slug):
-    """Stable hue (green→teal→blue) per turf so every cover feels distinct."""
-    return 118 + (sum(ord(c) * (i + 3) for i, c in enumerate(str(slug))) % 100)
+    """A stable cool hue (green → teal → blue → indigo) per turf, so covers without
+    a photo each get their own colour."""
+    hues = (146, 160, 176, 196, 214, 238, 258)
+    return hues[sum(ord(c) * (i + 3) for i, c in enumerate(str(slug))) % len(hues)]
 
 
 @register.filter
@@ -66,9 +67,3 @@ def notification_link(context, note):
             return reverse('booking_detail', args=[b.reference])
         return f"{reverse('manage_schedule', args=[b.turf.slug])}?date={bk_date_iso(b.start_at)}"
     return None
-
-
-@register.inclusion_tag('core/booking/_strip.html')
-def bookable_strip():
-    turfs = list(Turf.objects.filter(is_active=True, booking_enabled=True)[:6])
-    return {'cards': [{'turf': t, 'free_today': bl.free_slots_today(t)} for t in turfs]}

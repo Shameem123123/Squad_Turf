@@ -1,11 +1,15 @@
 {% load booking_tags %}
-<a class="bk-bcard {% if b.is_cancelled or b.has_ended %}is-dim{% endif %}" href="{% url 'booking_detail' b.reference %}">
-  <div class="bk-row"><h3>{{ b.turf.name }}</h3>
-    {% if b.is_cancelled %}<span class="bk-tag bk-tag-red">Cancelled</span>
-    {% elif b.has_ended %}<span class="bk-tag">Played</span>
-    {% elif b.in_progress %}<span class="bk-tag bk-tag-green"><i class="bk-dot"></i>Live now</span>
-    {% else %}<span class="bk-tag bk-tag-green">Confirmed</span>{% endif %}
+<a class="st-item {% if b.is_cancelled or b.has_ended %}is-dim{% endif %}" href="{% url 'booking_detail' b.reference %}">
+  <div class="st-row">
+    <h3>{{ b.turf.name }}</h3>
+    {% if b.is_cancelled %}<span class="st-tag st-tag-bad">Cancelled</span>
+    {% elif b.has_ended %}<span class="st-tag">Played</span>
+    {% elif b.in_progress %}<span class="st-tag st-tag-ok"><i class="st-dot"></i>Live now</span>
+    {% else %}<span class="st-tag st-tag-ok">Confirmed</span>{% endif %}
   </div>
   <div class="when">{{ b.start_at|bk_day }} · {{ b|bk_range }}</div>
-  <div class="meta"><span class="bk-muted bk-num" style="font-size:13px">{{ b.reference }} · {{ b.slot_count }} slot{{ b.slot_count|pluralize }}</span><b class="bk-num">{{ b.amount|inr }}</b></div>
+  <div class="meta">
+    <span class="st-muted st-num" style="font-size:13px">{{ b.reference }} · {{ b.slot_count }} slot{{ b.slot_count|pluralize }}</span>
+    <b class="st-num">{{ b.amount|inr }}</b>
+  </div>
 </a>

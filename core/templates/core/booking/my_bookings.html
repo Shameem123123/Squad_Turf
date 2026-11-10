@@ -1,20 +1,23 @@
 {% extends 'core/base.html' %}
-{% load static booking_tags %}
+{% load booking_tags %}
 {% block title %}My bookings — SquadTurf{% endblock %}
 {% block content %}
-<div class="bk">
-  <p class="bk-eyebrow">Bookings</p>
-  <h1 class="bk-title">My bookings</h1>
-  <div class="bk-seg" role="tablist">
-    <a class="{% if tab == 'upcoming' %}is-active{% endif %}" href="?tab=upcoming">Upcoming{% if upcoming_count %} · {{ upcoming_count }}{% endif %}</a>
-    <a class="{% if tab == 'past' %}is-active{% endif %}" href="?tab=past">Past &amp; cancelled</a>
-  </div>
+<div class="st">
+  <p class="st-eyebrow">Book</p>
+  <h1 class="st-title">My bookings</h1>
+  {% include 'core/booking/_book_nav.html' %}
+  <nav class="st-chips" style="margin-top:8px" aria-label="Filter">
+    <a class="st-chip {% if tab == 'upcoming' %}is-active{% endif %}" href="?tab=upcoming">Upcoming</a>
+    <a class="st-chip {% if tab == 'past' %}is-active{% endif %}" href="?tab=past">Past &amp; cancelled</a>
+  </nav>
   <div id="live-region">
     {% if bookings %}
-      <div class="bk-list">{% for b in bookings %}{% include 'core/booking/_bcard.html' %}{% endfor %}</div>
+    <div class="st-list">{% for b in bookings %}{% include 'core/booking/_bcard.html' %}{% endfor %}</div>
     {% else %}
-      <div class="bk-empty"><b>{% if tab == 'upcoming' %}Nothing booked yet.{% else %}No past bookings.{% endif %}</b>
-        {% if tab == 'upcoming' %}Lock in a slot and the squad will follow.<div style="margin-top:16px"><a class="bk-btn" href="{% url 'book_directory' %}">Book a turf</a></div>{% endif %}</div>
+    <div class="st-empty">
+      <b>{% if tab == 'upcoming' %}Nothing booked yet.{% else %}No past bookings.{% endif %}</b>
+      {% if tab == 'upcoming' %}Pick a turf and lock in a slot.<div><a class="st-btn" href="{% url 'book_directory' %}">Book a turf</a></div>{% endif %}
+    </div>
     {% endif %}
   </div>
 </div>

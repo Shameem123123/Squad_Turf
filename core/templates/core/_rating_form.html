@@ -1,0 +1,16 @@
+<form method="post" action="{% url 'submit_rating' match.id %}" class="rating-form">
+  {% csrf_token %}
+  {% if rated_user_id %}<input type="hidden" name="rated_user_id" value="{{ rated_user_id }}">{% endif %}
+  <div class="st-options">
+    <label class="st-option"><input type="radio" name="showed_up" value="on" checked><span>Showed up</span></label>
+    <label class="st-option"><input type="radio" name="showed_up" value=""><span>Didn't attend</span></label>
+  </div>
+  <div class="st-stars-wrap" style="margin-top:12px">
+    <input type="hidden" name="stars" value="5">
+    <div class="st-stars" aria-label="Play rating">
+      {% for i in "12345" %}<button type="button" data-value="{{ forloop.counter }}" aria-label="{{ forloop.counter }} star">★</button>{% endfor %}
+      <span class="star-label st-muted" style="margin-left:8px;font-size:14px"></span>
+    </div>
+  </div>
+  <button type="submit" class="st-btn st-btn-sm" style="margin-top:12px">Submit</button>
+</form>
