@@ -284,6 +284,18 @@ Players can book real time slots at turfs; turf owners get their own console. It
 
 > Fast try-out: `python manage.py migrate && python manage.py seed_booking_demo --manager` enables booking on the sample turfs and prints a demo turf-admin login. Delete that account before going live.
 
+### Turf photos
+
+A turf's photo is a **link**, not an uploaded file (free hosts wipe uploaded files on
+every redeploy). Upload the picture to any image host (Imgur, Cloudinary, your own
+site), copy the direct `https://…` link, and paste it into **Cover image url**:
+
+- site admin: `/admin/` → Turfs → the turf → *Listing details*
+- turf manager: Settings → *Cover photo link*
+
+Landscape (16:9, about 1600×900, under ~300 KB) looks best. If the link is empty or
+broken, the turf's coloured gradient is shown instead.
+
 ### Two account types
 | | Player | Turf admin |
 |---|---|---|

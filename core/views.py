@@ -19,7 +19,9 @@ from django.views.decorators.http import require_POST
 
 from . import booking_logic as bl
 from . import otp as otp_service
-from .forms import LoginForm, MatchForm, OtpForm, ProfileEditForm, SignupForm
+from .forms import (
+    LoginForm, MatchForm, OtpForm, ProfileEditForm, SignupForm, floor_half_hour_slot,
+)
 from .models import (
     Booking, JoinRequest, Match, Notification, Profile, PushSubscription, Rating, Turf,
 )
@@ -376,6 +378,38 @@ def turf_detail(request, slug):
 # Match lifecycle
 # ---------------------------------------------------------------------------
 
+def _initial_from_booking(request, reference):
+    """Prefill the host-a-game form from one of the player's own upcoming bookings:
+    the turf, the day, the kickoff time and whether it counts as urgent."""
+    now = timezone.now()
+    booking = Booking.objects.filter(
+        reference=(reference or '').upper(), user=request.user, source=Booking.Source.ONLINE,
+        status=Booking.Status.CONFIRMED, end_at__gt=now,
+    ).select_related('turf').first()
+    if booking is None:
+        return {}
+    initial = {'turf': booking.turf_id}
+    start = timezone.localtime(booking.start_at)
+    days_away = (start.date() - timezone.localdate()).days
+    if booking.start_at <= now:                     # already under way: nothing left to schedule
+        initial['match_type'] = Match.MatchType.URGENT
+    elif days_away > 1:
+        messages.info(
+            request,
+            f"Games can be posted for today or tomorrow. Your booking is on {start:%a, %d %b}.",
+        )
+    else:
+        initial['match_time_slot'] = floor_half_hour_slot(start)
+        if days_away == 0:
+            soon = booking.start_at <= now + URGENT_MAX_WINDOW
+            initial['match_type'] = Match.MatchType.URGENT if soon else Match.MatchType.SCHEDULED
+            initial['match_date_choice'] = 'TODAY'
+        else:
+            initial['match_type'] = Match.MatchType.SCHEDULED
+            initial['match_date_choice'] = 'TOMORROW'
+    return initial
+
+
 @login_required
 @player_only
 def create_match(request):
@@ -440,6 +474,8 @@ def create_match(request):
                 initial['turf'] = int(preselected_turf_id)
             except ValueError:
                 pass
+        if request.GET.get('booking'):
+            initial.update(_initial_from_booking(request, request.GET['booking']))
         form = MatchForm(initial=initial)
 
     return render(request, 'core/create_match.html', {'form': form})
@@ -791,7 +827,12 @@ def my_joined(request):
 
 @login_required
 def profile(request):
-    prof = request.user.profile
+    # Accounts made outside the signup flow (a superuser, or a user added in /admin/) can
+    # lack a Profile row. Show the page anyway instead of failing with a server error.
+    prof = Profile.objects.filter(user=request.user).first()
+    has_profile = prof is not None
+    if not has_profile:
+        prof = Profile(user=request.user, phone='')
     is_manager = bl.is_turf_admin(request.user)
 
     if request.method == 'POST':
@@ -799,7 +840,7 @@ def profile(request):
         if form.is_valid():
             request.user.first_name = form.cleaned_data['name']
             request.user.save(update_fields=['first_name'])
-            if not is_manager:
+            if not is_manager and has_profile:
                 prof.is_available_for_alerts = form.cleaned_data['is_available_for_alerts']
                 prof.save(update_fields=['is_available_for_alerts'])
             messages.success(request, "Profile saved.")

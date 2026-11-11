@@ -4,7 +4,7 @@
 <div class="st st-narrow">
   <div class="st-person" style="margin-bottom:20px">
     <span class="st-avatar" style="width:56px;height:56px;font-size:18px">{{ profile.initials }}</span>
-    <div><h1 style="font-size:24px;letter-spacing:-.03em;font-weight:700">{{ profile.display_name }}</h1><p class="st-muted">{{ profile.phone }}{% if is_manager %} · Turf manager{% endif %}</p></div>
+    <div><h1 style="font-size:24px;letter-spacing:-.03em;font-weight:700">{{ profile.display_name }}</h1><p class="st-muted">{% if profile.phone %}{{ profile.phone }}{% endif %}{% if is_manager %}{% if profile.phone %} · {% endif %}Turf manager{% endif %}</p></div>
   </div>
 
   {% if stats %}

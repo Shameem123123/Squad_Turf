@@ -272,3 +272,103 @@ class Flow(BookingBase):
         many = bl.free_slots_today_many([self.turf, other])
         self.assertEqual(many[self.turf.pk], bl.free_slots_today(self.turf))
         self.assertEqual(many[other.pk], bl.free_slots_today(other))
+
+
+class HostFromBooking(BookingBase):
+    """'Find players for this game' on a ticket opens the host form prefilled."""
+
+    def local_booking(self, day_offset, hour, minute=0):
+        local = timezone.localtime(timezone.now()).replace(
+            hour=hour, minute=minute, second=0, microsecond=0
+        ) + timedelta(days=day_offset)
+        return Booking.objects.create(
+            turf=self.turf, user=self.player, start_at=local, end_at=local + timedelta(hours=1),
+            amount=Decimal(1000),
+        )
+
+    def open_form(self, booking):
+        self.client.login(username='asha', password='pass12345')
+        return self.client.get(reverse('create_match'), {'booking': booking.reference})
+
+    def test_ticket_link_carries_the_booking(self):
+        b = self.book('10:00')
+        self.client.login(username='asha', password='pass12345')
+        page = self.client.get(reverse('booking_detail', args=[b.reference]))
+        self.assertContains(page, f"{reverse('create_match')}?booking={b.reference}")
+
+    def test_tomorrow_booking_prefills_turf_day_and_time(self):
+        b = self.local_booking(1, 19, 0)
+        form = self.open_form(b).context['form']
+        self.assertEqual(form.initial['turf'], self.turf.pk)
+        self.assertEqual(form.initial['match_type'], Match.MatchType.SCHEDULED)
+        self.assertEqual(form.initial['match_date_choice'], 'TOMORROW')
+        self.assertEqual(form.initial['match_time_slot'], '19:00')
+
+    def test_prefilled_choices_are_selected_in_the_page(self):
+        b = self.local_booking(1, 19, 0)
+        page = self.open_form(b)
+        self.assertContains(page, 'value="SCHEDULED" checked')
+        self.assertContains(page, '<option value="19:00" selected>')
+        self.assertContains(page, 'value="TOMORROW"')
+
+    def test_start_time_is_rounded_down_to_the_half_hour(self):
+        b = self.local_booking(1, 18, 45)
+        self.assertEqual(self.open_form(b).context['form'].initial['match_time_slot'], '18:30')
+
+    def test_booking_starting_soon_is_urgent(self):
+        b = soon_booking(self.turf, self.player, 45)
+        start = timezone.localtime(b.start_at)
+        if start.date() != timezone.localdate():
+            self.skipTest("booking crosses midnight")
+        form = self.open_form(b).context['form']
+        self.assertEqual(form.initial['match_type'], Match.MatchType.URGENT)
+        self.assertEqual(form.initial['match_date_choice'], 'TODAY')
+        self.assertEqual(form.initial['turf'], self.turf.pk)
+
+    def test_far_future_booking_prefills_turf_only_and_explains(self):
+        b = self.book('10:00')                                         # three days away
+        page = self.open_form(b)
+        form = page.context['form']
+        self.assertEqual(form.initial['turf'], self.turf.pk)
+        self.assertNotIn('match_time_slot', form.initial)
+        self.assertContains(page, 'Games can be posted for today or tomorrow')
+
+    def test_someone_elses_or_cancelled_booking_is_ignored(self):
+        mine = self.local_booking(1, 19, 0)
+        self.client.login(username='ben', password='pass12345')
+        form = self.client.get(reverse('create_match'), {'booking': mine.reference}).context['form']
+        self.assertNotIn('match_time_slot', form.initial)
+        self.client.login(username='asha', password='pass12345')
+        bl.cancel_booking(mine, 'PLAYER')
+        form = self.client.get(reverse('create_match'), {'booking': mine.reference}).context['form']
+        self.assertNotIn('match_time_slot', form.initial)
+
+
+class ProfilePage(BookingBase):
+    def test_account_without_a_profile_row_gets_the_page(self):
+        bare = User.objects.create_user('bare', password='pass12345', first_name='Bare')
+        self.client.login(username='bare', password='pass12345')
+        self.assertEqual(self.client.get(reverse('profile')).status_code, 200)
+        r = self.client.post(reverse('profile'), {'name': 'Renamed'})
+        self.assertEqual(r.status_code, 302)
+        bare.refresh_from_db()
+        self.assertEqual(bare.first_name, 'Renamed')
+
+    def test_superuser_and_linked_existing_user_get_the_page(self):
+        User.objects.create_superuser('root', password='pass12345')
+        self.client.login(username='root', password='pass12345')
+        self.assertEqual(self.client.get(reverse('profile')).status_code, 200)
+        linked = User.objects.create_user('linked', password='pass12345')
+        TurfManager.objects.create(user=linked, turf=self.turf)       # no Profile created
+        self.client.login(username='linked', password='pass12345')
+        self.assertEqual(self.client.get(reverse('profile')).status_code, 200)
+        self.assertEqual(self.client.get(reverse('manage_schedule', args=['arena'])).status_code, 200)
+
+    def test_normal_player_profile_still_works(self):
+        self.client.login(username='asha', password='pass12345')
+        page = self.client.get(reverse('profile'))
+        self.assertContains(page, self.player.profile.phone)
+        r = self.client.post(reverse('profile'), {'name': 'Asha K'})
+        self.assertEqual(r.status_code, 302)
+        self.player.profile.refresh_from_db()
+        self.assertFalse(self.player.profile.is_available_for_alerts)  # box left unticked

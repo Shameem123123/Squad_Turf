@@ -29,8 +29,8 @@ var timeSelect = document.getElementById('id_match_time_slot');
     var kept = false;
     allTimeOptions.forEach(function (opt) {
       var m = slotMinutes(opt.value);
-      // handle same-day slots only; wrap past midnight is out of scope for "next 2.5h"
-      if (m >= nowMin - 30 && m <= maxMin) {
+      // Only slots still to come: at 11:25 the first choice is 11:30, never 11:00.
+      if (m > nowMin && m <= maxMin) {
         var el = document.createElement('option');
         el.value = opt.value;
         el.textContent = opt.label;
@@ -38,9 +38,18 @@ var timeSelect = document.getElementById('id_match_time_slot');
         timeSelect.appendChild(el);
       }
     });
-    if (!kept && timeSelect.options.length) {
-      timeSelect.value = timeSelect.options[0].value;
+    if (timeSelect.options.length) {
+      timeSelect.value = kept ? current : timeSelect.options[0].value;
     }
+    setNoSlots(!timeSelect.options.length,
+      "No slots left in the next 2.5 hours. Choose Plan ahead \u2192 Tomorrow.");
+  }
+
+  // Nothing left to pick: say so and keep Post disabled instead of failing on submit.
+  function setNoSlots(none, message) {
+    var submit = document.querySelector('.st-form-card button[type="submit"]');
+    if (submit) submit.disabled = none;
+    if (none) document.getElementById('time_helper').textContent = message;
   }
 
   function restoreAllOptions() {
@@ -72,15 +81,13 @@ var timeSelect = document.getElementById('id_match_time_slot');
       }
     });
     if (!timeSelect.options.length) {
-      // Past midnight with nothing left today — fall back to the full list
-      // rather than leaving the select empty; the day should really be
-      // switched to Tomorrow at this point.
+      // Nothing left today: move to Tomorrow, where every slot is still ahead.
+      var tomorrow = document.querySelector('input[name="match_date_choice"][value="TOMORROW"]');
+      if (tomorrow) tomorrow.checked = true;
       restoreAllOptions();
       return;
     }
-    if (!kept) {
-      timeSelect.value = timeSelect.options[0].value;
-    }
+    timeSelect.value = kept ? current : timeSelect.options[0].value;
   }
 
   function checkCollision() {
@@ -102,6 +109,7 @@ var timeSelect = document.getElementById('id_match_time_slot');
     document.getElementById('time_helper').textContent = type === 'URGENT'
       ? "Urgent matches must kick off within the next 2.5 hours — half-hour slots."
       : "Pick the exact kickoff time for the day you chose above.";
+    setNoSlots(false, '');
 
     if (type === 'URGENT') {
       rebuildUrgentOptions();

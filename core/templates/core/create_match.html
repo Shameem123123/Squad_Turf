@@ -16,8 +16,8 @@
     <div class="st-field">
       <span>When</span>
       <div class="st-options">
-        <label class="st-option"><input type="radio" name="match_type" value="URGENT" checked><span>Right now<small>Within 2.5 hours</small></span></label>
-        <label class="st-option"><input type="radio" name="match_type" value="SCHEDULED"><span>Plan ahead<small>Today or tomorrow</small></span></label>
+        <label class="st-option"><input type="radio" name="match_type" value="URGENT" {% if form.match_type.value != 'SCHEDULED' %}checked{% endif %}><span>Right now<small>Within 2.5 hours</small></span></label>
+        <label class="st-option"><input type="radio" name="match_type" value="SCHEDULED" {% if form.match_type.value == 'SCHEDULED' %}checked{% endif %}><span>Plan ahead<small>Today or tomorrow</small></span></label>
       </div>
     </div>
 

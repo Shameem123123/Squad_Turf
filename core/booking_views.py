@@ -223,7 +223,7 @@ def booking_detail(request, ref):
     return render(request, 'core/booking/ticket.html', {
         'b': booking, 'turf': booking.turf, 'is_new': request.GET.get('new') == '1',
         'share_text': share, 'qr': code,
-        'host_url': f"{reverse('create_match')}?turf={booking.turf_id}",
+        'host_url': f"{reverse('create_match')}?booking={booking.reference}",
     })
 
 

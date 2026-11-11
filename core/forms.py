@@ -32,6 +32,11 @@ def next_half_hour_slot(from_dt):
     return f"{hour:02d}:{minute:02d}"
 
 
+def floor_half_hour_slot(dt):
+    """The :00/:30 slot value at or just before `dt` (local time): 18:45 -> '18:30'."""
+    return f"{dt.hour:02d}:{30 if dt.minute >= 30 else 0:02d}"
+
+
 class SignupForm(forms.Form):
     name = forms.CharField(
         max_length=150,
